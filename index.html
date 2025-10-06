@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QuickVote</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .card { max-width: 700px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+    h1, h2 { text-align: center; }
+    form { margin-bottom: 15px; }
+    input, textarea, button, select { margin: 5px 0; padding: 8px; width: 100%; }
+    button { cursor: pointer; }
+    #results-panel { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>QuickVote</h1>
+
+    <!-- Admin Panel -->
+    <div id="admin-panel" style="margin-bottom:20px; border:1px solid #ddd; padding:10px;">
+      <h2>Create New Voting Context (Admin)</h2>
+      <form id="context-form">
+        <input id="ctx-title" placeholder="Voting Title" required>
+        <textarea id="ctx-options" placeholder='["Option A","Option B"]' required></textarea>
+        <button type="submit">Create Context</button>
+      </form>
+      <div id="ctx-result"></div>
+    </div>
+
+    <!-- Context Selector -->
+    <div id="context-select-panel" style="margin-bottom:20px;">
+      <label for="context-select">Pilih Voting Context:</label>
+      <select id="context-select"></select>
+    </div>
+
+    <!-- Voting Panel -->
+    <div id="vote-panel">
+      <h2 id="vote-title">Loading context...</h2>
+      <div id="vote-options"></div>
+      <button id="submit-vote">Vote</button>
+    </div>
+
+    <!-- Chart Results -->
+    <div id="results-panel">
+      <h2>Live Results</h2>
+      <canvas id="results-chart"></canvas>
+    </div>
+  </main>
+
+  <script>
+    // === CONFIG ===
+    const BACKEND_URL = "https://script.google.com/a/macros/afpi.or.id/s/AKfycbx7sg7hCwNrd6bd-2doAGQiRbD3iQO79Fv2zqXA0_upkmad2FNU2vejSJMCQVzfY8LYyg/exec"; // <--- ganti dengan URL dari Apps Script
+    let activeContext = null;
+    let contexts = [];
+    let chart = null;
+    let token = new URLSearchParams(location.search).get("token");
+
+    // === Load contexts ===
+    async function loadContexts() {
+      const resp = await fetch(BACKEND_URL);
+      const data = await resp.json();
+      if (data.success && data.data.length > 0) {
+        contexts = data.data;
+        const select = document.getElementById("context-select");
+        select.innerHTML = "";
+        contexts.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.title;
+          select.appendChild(opt);
+        });
+        // default pilih context terbaru
+        activeContext = contexts[contexts.length-1];
+        select.value = activeContext.id;
+        document.getElementById("vote-title").innerText = activeContext.title;
+        renderOptions(activeContext.options);
+        loadVotes();
+      }
+    }
+
+    // === Render voting options ===
+    function renderOptions(opts) {
+      const div = document.getElementById("vote-options");
+      div.innerHTML = "";
+      opts.forEach(o => {
+        div.innerHTML += `<label><input type="radio" name="choice" value="${o}"> ${o}</label><br>`;
+      });
+    }
+
+    // === Submit vote ===
+    document.getElementById("submit-vote").onclick = async () => {
+      const choice = document.querySelector("input[name=choice]:checked")?.value;
+      if (!choice) return alert("Pick an option");
+
+      const payload = {
+        action: "vote",
+        context: activeContext.id,
+        token: token,
+        choice: choice,
+        fingerprint: navigator.userAgent
+      };
+
+      const resp = await fetch(BACKEND_URL, {
+        method:"POST",
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      alert(res.message);
+      loadVotes();
+    };
+
+    // === Admin create context ===
+    document.getElementById("context-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("ctx-title").value;
+      const options = JSON.parse(document.getElementById("ctx-options").value);
+
+      const payload = { action:"create_context", title, options };
+      const resp = await fetch(BACKEND_URL, {
+        method:"POST",
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      document.getElementById("ctx-result").innerText = res.message;
+      loadContexts();
+    };
+
+    // === Load votes & draw chart ===
+    async function loadVotes() {
+      if (!activeContext) return;
+      const resp = await fetch(`${BACKEND_URL}?action=votes&context=${activeContext.id}`);
+      const res = await resp.json();
+      if (!res.success) return;
+
+      const counts = {};
+      activeContext.options.forEach(o => counts[o] = 0);
+      res.data.forEach(v => {
+        if (counts[v.choice] !== undefined) counts[v.choice]++;
+      });
+
+      const labels = Object.keys(counts);
+      const values = Object.values(counts);
+
+      const ctx = document.getElementById("results-chart").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0"],
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom" } }
+        }
+      });
+    }
+
+    // === Event handler untuk ganti context ===
+    document.getElementById("context-select").onchange = (e) => {
+      const ctxId = e.target.value;
+      activeContext = contexts.find(c => c.id === ctxId);
+      document.getElementById("vote-title").innerText = activeContext.title;
+      renderOptions(activeContext.options);
+      loadVotes();
+    };
+
+    // === Auto refresh hasil tiap 10 detik ===
+    setInterval(loadVotes, 10000);
+
+    // Init
+    loadContexts();
+  </script>
+</body>
+</html>

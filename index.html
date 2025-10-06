@@ -41,9 +41,7 @@
       transition: 0.3s;
     }
     button:hover { background: #1d4ed8; }
-    .section {
-      margin-top: 30px;
-    }
+    .section { margin-top: 30px; }
     .option-input {
       display: flex;
       gap: 8px;
@@ -89,38 +87,49 @@
   </div>
 
   <script>
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwvKvx-GSwjBhAqp3wBG7lbkvusyKjSfXvQ9yHcXUIgssV594YlV547Y4AKUJ9p4ecQ_g/exec";
-    
+    // ✅ BACKEND URL PERMANEN
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyBJMSnOiRGi7SsRJDHlAIXQQmnrpek26mbxHcaWZXhtONhIoclZTiXY3yyTbadIutoRg/exec";
+
     let chart;
     const ctxSelect = document.getElementById("contextSelect");
     const voteOptionsDiv = document.getElementById("voteOptions");
 
-    // ========== LOAD CONTEXTS ==========
+    // ===== LOAD CONTEXTS =====
     async function loadContexts() {
-      const res = await fetch(`${BACKEND_URL}?action=getContexts`);
-      const json = await res.json();
-      ctxSelect.innerHTML = "";
-      if (!json.success || !json.contexts.length) {
-        ctxSelect.innerHTML = `<option>No context available</option>`;
-        return;
+      try {
+        const res = await fetch(`${BACKEND_URL}?action=getContexts`);
+        const json = await res.json();
+
+        ctxSelect.innerHTML = "";
+        if (!json.success || !json.contexts.length) {
+          ctxSelect.innerHTML = `<option>No context available</option>`;
+          voteOptionsDiv.innerHTML = "";
+          return;
+        }
+
+        json.contexts.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.title;
+          ctxSelect.appendChild(opt);
+        });
+        renderOptions();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to load contexts");
       }
-      json.contexts.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.title;
-        ctxSelect.appendChild(opt);
-      });
-      renderOptions();
     }
 
-    // ========== RENDER VOTE OPTIONS ==========
+    // ===== RENDER VOTE OPTIONS =====
     async function renderOptions() {
       const selectedId = ctxSelect.value;
       if (!selectedId) return;
+
       const res = await fetch(`${BACKEND_URL}?action=getContexts`);
       const json = await res.json();
       const ctx = json.contexts.find(c => c.id === selectedId);
       if (!ctx) return;
+
       voteOptionsDiv.innerHTML = "";
       ctx.options.forEach(opt => {
         const div = document.createElement("div");
@@ -129,7 +138,7 @@
       });
     }
 
-    // ========== CREATE CONTEXT ==========
+    // ===== CREATE CONTEXT =====
     document.getElementById("addOption").onclick = () => {
       const div = document.createElement("div");
       div.classList.add("option-input");
@@ -143,17 +152,27 @@
       const options = Array.from(document.querySelectorAll("#optionsContainer input"))
         .map(i => i.value.trim()).filter(Boolean);
 
-      const res = await fetch(BACKEND_URL, {
+      if (!title || options.length < 2) {
+        alert("Please fill title and at least 2 options.");
+        return;
+      }
+
+      const res = await fetch(`${BACKEND_URL}?action=createContext`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "createContext", title, options }),
+        body: JSON.stringify({ title, options }),
       });
+
       const json = await res.json();
-      alert(json.message || "Context created!");
-      loadContexts();
+      if (json.success) {
+        alert("Context created!");
+        loadContexts();
+      } else {
+        alert(json.message || "Failed to create context");
+      }
     };
 
-    // ========== SUBMIT VOTE ==========
+    // ===== SUBMIT VOTE =====
     document.getElementById("submitVote").onclick = async () => {
       const contextId = ctxSelect.value;
       const choice = document.querySelector("input[name='voteOption']:checked")?.value;
@@ -162,20 +181,23 @@
         alert("Please select context, option, and enter token!");
         return;
       }
+
       const fingerprint = navigator.userAgent;
-      const res = await fetch(BACKEND_URL, {
+      const res = await fetch(`${BACKEND_URL}?action=vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "submitVote", contextId, choice, token, fingerprint }),
+        body: JSON.stringify({ contextId, token, choice, fingerprint }),
       });
+
       const json = await res.json();
-      alert(json.message || "Vote recorded!");
+      alert(json.success ? "Vote recorded!" : json.message || "Vote failed");
     };
 
-    // ========== RESULTS CHART ==========
+    // ===== RESULTS CHART =====
     document.getElementById("refreshResults").onclick = async () => {
       const contextId = ctxSelect.value;
       if (!contextId) return alert("Select a context first");
+
       const res = await fetch(`${BACKEND_URL}?action=getResults&contextId=${contextId}`);
       const json = await res.json();
       if (!json.success) return alert("Error loading results");
@@ -198,7 +220,7 @@
       });
     };
 
-    // Initial load
+    // Init
     ctxSelect.onchange = renderOptions;
     loadContexts();
   </script>

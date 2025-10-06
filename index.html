@@ -7,201 +7,199 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      font-family: system-ui, sans-serif;
-      margin: 40px;
-      background: #f4f6f9;
-      color: #333;
+      font-family: 'Inter', sans-serif;
+      background: #f6f8fa;
+      margin: 0;
+      padding: 20px;
+      color: #222;
     }
     h1 {
       text-align: center;
-      color: #444;
+      color: #333;
     }
-    form {
-      background: white;
-      padding: 20px;
+    .container {
+      max-width: 700px;
+      margin: 20px auto;
+      background: #fff;
       border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      padding: 20px;
     }
-    input, select, button, textarea {
+    input, button, select, textarea {
       width: 100%;
+      margin: 5px 0;
       padding: 10px;
-      margin: 6px 0;
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 15px;
     }
     button {
-      background: #0066ff;
+      background: #2563eb;
       color: white;
       border: none;
       cursor: pointer;
+      transition: 0.3s;
     }
-    button:hover {
-      background: #004ccc;
+    button:hover { background: #1d4ed8; }
+    .section {
+      margin-top: 30px;
     }
-    canvas {
-      margin-top: 20px;
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      max-width: 700px;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
+    .option-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
+    .option-input input { flex: 1; }
+    canvas { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>🗳️ Online Voting System</h1>
+  <h1>🗳️ Simple Online Voting System</h1>
+  <div class="container">
+    <!-- CREATE CONTEXT -->
+    <div class="section">
+      <h2>Create Voting Context</h2>
+      <form id="createContextForm">
+        <input id="contextTitle" placeholder="Enter vote title..." required />
+        <div id="optionsContainer">
+          <div class="option-input">
+            <input placeholder="Option 1" required />
+          </div>
+        </div>
+        <button type="button" id="addOption">+ Add Option</button>
+        <button type="submit">Create Context</button>
+      </form>
+    </div>
 
-  <!-- Create new voting context -->
-  <form id="createContextForm">
-    <h2>Create Voting Context</h2>
-    <label>Title:</label>
-    <input type="text" id="contextTitle" placeholder="Enter voting title" required />
+    <!-- VOTE SECTION -->
+    <div class="section">
+      <h2>Cast Your Vote</h2>
+      <select id="contextSelect"></select>
+      <div id="voteOptions"></div>
+      <input id="tokenInput" placeholder="Enter your unique token" />
+      <button id="submitVote">Submit Vote</button>
+    </div>
 
-    <label>Options (comma separated):</label>
-    <input type="text" id="options" placeholder="e.g., Setuju, Tidak Setuju, Abstain" required />
-
-    <button type="submit">Create Context</button>
-  </form>
-
-  <!-- Submit a vote -->
-  <form id="voteForm">
-    <h2>Submit Your Vote</h2>
-    <label>Token (your unique access code):</label>
-    <input type="text" id="token" placeholder="Enter your unique token" required />
-
-    <label>Select Context:</label>
-    <select id="contextSelect" required></select>
-
-    <label>Choose Option:</label>
-    <select id="optionSelect" required></select>
-
-    <button type="submit">Submit Vote</button>
-  </form>
-
-  <canvas id="resultsChart" width="600" height="400"></canvas>
+    <!-- RESULTS -->
+    <div class="section">
+      <h2>Results</h2>
+      <button id="refreshResults">Refresh Results</button>
+      <canvas id="resultsChart" width="400" height="200"></canvas>
+    </div>
+  </div>
 
   <script>
     const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyBJMSnOiRGi7SsRJDHlAIXQQmnrpek26mbxHcaWZXhtONhIoclZTiXY3yyTbadIutoRg/exec";
 
-    const contextSelect = document.getElementById("contextSelect");
-    const optionSelect = document.getElementById("optionSelect");
     let chart;
+    const ctxSelect = document.getElementById("contextSelect");
+    const voteOptionsDiv = document.getElementById("voteOptions");
 
-    // --- Fetch available contexts ---
+    // ========== LOAD CONTEXTS ==========
     async function loadContexts() {
-      const res = await fetch(BACKEND_URL + "?action=getContexts");
-      const data = await res.json();
-      contextSelect.innerHTML = "";
-      data.contexts.forEach(ctx => {
+      const res = await fetch(`${BACKEND_URL}?action=getContexts`);
+      const json = await res.json();
+      ctxSelect.innerHTML = "";
+      if (!json.success || !json.contexts.length) {
+        ctxSelect.innerHTML = `<option>No context available</option>`;
+        return;
+      }
+      json.contexts.forEach(c => {
         const opt = document.createElement("option");
-        opt.value = ctx.title;
-        opt.textContent = ctx.title;
-        contextSelect.appendChild(opt);
+        opt.value = c.id;
+        opt.textContent = c.title;
+        ctxSelect.appendChild(opt);
       });
-      if (data.contexts.length > 0) loadOptions();
+      renderOptions();
     }
 
-    // --- Load options for selected context ---
-    async function loadOptions() {
-      const title = contextSelect.value;
-      const res = await fetch(BACKEND_URL + "?action=getContextOptions&title=" + encodeURIComponent(title));
-      const data = await res.json();
-      optionSelect.innerHTML = "";
-      data.options.forEach(o => {
-        const opt = document.createElement("option");
-        opt.value = o;
-        opt.textContent = o;
-        optionSelect.appendChild(opt);
+    // ========== RENDER VOTE OPTIONS ==========
+    async function renderOptions() {
+      const selectedId = ctxSelect.value;
+      if (!selectedId) return;
+      const res = await fetch(`${BACKEND_URL}?action=getContexts`);
+      const json = await res.json();
+      const ctx = json.contexts.find(c => c.id === selectedId);
+      if (!ctx) return;
+      voteOptionsDiv.innerHTML = "";
+      ctx.options.forEach(opt => {
+        const div = document.createElement("div");
+        div.innerHTML = `<label><input type='radio' name='voteOption' value='${opt}'> ${opt}</label>`;
+        voteOptionsDiv.appendChild(div);
       });
-      loadResults();
     }
 
-    contextSelect.onchange = loadOptions;
+    // ========== CREATE CONTEXT ==========
+    document.getElementById("addOption").onclick = () => {
+      const div = document.createElement("div");
+      div.classList.add("option-input");
+      div.innerHTML = `<input placeholder="New Option" required />`;
+      document.getElementById("optionsContainer").appendChild(div);
+    };
 
-    // --- Create new context ---
     document.getElementById("createContextForm").onsubmit = async (e) => {
       e.preventDefault();
       const title = document.getElementById("contextTitle").value.trim();
-      const options = document.getElementById("options").value.trim();
+      const options = Array.from(document.querySelectorAll("#optionsContainer input"))
+        .map(i => i.value.trim()).filter(Boolean);
 
-      const response = await fetch(BACKEND_URL, {
+      const res = await fetch(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "createContext",
-          contextTitle: title,
-          options: options.split(",").map(o => o.trim())
-        })
+        body: JSON.stringify({ action: "createContext", title, options }),
       });
-
-      const result = await response.json();
-      alert(result.message || "Context created");
-      document.getElementById("createContextForm").reset();
+      const json = await res.json();
+      alert(json.message || "Context created!");
       loadContexts();
     };
 
-    // --- Submit vote ---
-    document.getElementById("voteForm").onsubmit = async (e) => {
-      e.preventDefault();
-      const token = document.getElementById("token").value.trim();
-      const title = contextSelect.value;
-      const selectedOption = optionSelect.value;
-
-      const response = await fetch(BACKEND_URL, {
+    // ========== SUBMIT VOTE ==========
+    document.getElementById("submitVote").onclick = async () => {
+      const contextId = ctxSelect.value;
+      const choice = document.querySelector("input[name='voteOption']:checked")?.value;
+      const token = document.getElementById("tokenInput").value.trim();
+      if (!contextId || !choice || !token) {
+        alert("Please select context, option, and enter token!");
+        return;
+      }
+      const fingerprint = navigator.userAgent;
+      const res = await fetch(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "submitVote",
-          contextTitle: title,
-          selectedOption: selectedOption,
-          token: token
-        })
+        body: JSON.stringify({ action: "submitVote", contextId, choice, token, fingerprint }),
       });
-
-      const result = await response.json();
-      alert(result.message || "Vote submitted!");
-      document.getElementById("voteForm").reset();
-      loadResults();
+      const json = await res.json();
+      alert(json.message || "Vote recorded!");
     };
 
-    // --- Load results ---
-    async function loadResults() {
-      const title = contextSelect.value;
-      const res = await fetch(BACKEND_URL + "?action=getResults&title=" + encodeURIComponent(title));
-      const data = await res.json();
+    // ========== RESULTS CHART ==========
+    document.getElementById("refreshResults").onclick = async () => {
+      const contextId = ctxSelect.value;
+      if (!contextId) return alert("Select a context first");
+      const res = await fetch(`${BACKEND_URL}?action=getResults&contextId=${contextId}`);
+      const json = await res.json();
+      if (!json.success) return alert("Error loading results");
 
-      const ctx = document.getElementById("resultsChart").getContext("2d");
+      const labels = Object.keys(json.results);
+      const data = Object.values(json.results);
+
       if (chart) chart.destroy();
-
-      chart = new Chart(ctx, {
+      chart = new Chart(document.getElementById("resultsChart"), {
         type: "bar",
         data: {
-          labels: data.labels,
+          labels,
           datasets: [{
-            label: `Votes for "${title}"`,
-            data: data.values,
-            borderWidth: 1,
-            backgroundColor: "#4e79a7"
+            label: "Votes",
+            data,
+            backgroundColor: "rgba(37, 99, 235, 0.7)"
           }]
         },
-        options: {
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { scales: { y: { beginAtZero: true } } }
       });
-    }
+    };
 
-    // Auto refresh results every 5s
-    setInterval(loadResults, 5000);
-
-    // Initialize
+    // Initial load
+    ctxSelect.onchange = renderOptions;
     loadContexts();
   </script>
 </body>

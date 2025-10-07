@@ -98,13 +98,25 @@
     const voteOptionsDiv = document.getElementById("voteOptions");
 
     // ---- Helper function without JSON ----
+    // async function apiPost(data = {}) {
+    //   const formData = new FormData();
+    //   for (const key in data) formData.append(key, data[key]);
+    //   const res = await fetch(API_URL, { method: "POST", body: formData });
+    //   return res.json();
+    // }
     async function apiPost(data = {}) {
       const formData = new FormData();
-      for (const key in data) formData.append(key, data[key]);
-      const res = await fetch(API_URL, { method: "POST", body: formData });
-      return res.json();
-    }
+      for (const key in data) {
+        formData.append(key, data[key]);
+      }
 
+      const res = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+        return res.json();
+    }
     async function apiGet(params = "") {
       const res = await fetch(`${API_URL}?${params}`);
       return res.json();

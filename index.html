@@ -1,195 +1,217 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AFPI QuickVote</title>
+  <title>Online Voting System</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #fafafa; color: #222; }
-    h2 { margin-bottom: 0.5rem; }
-    .context-card {
-      background: white; border-radius: 12px; padding: 15px; margin-bottom: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f6f8fa;
+      margin: 0;
+      padding: 20px;
+      color: #222;
     }
-    button { cursor: pointer; border: none; background: #007bff; color: white; padding: 8px 14px; border-radius: 8px; }
-    button:hover { background: #0056b3; }
-    input, textarea, select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 100%; margin-top: 4px; }
-    .option-list { margin-top: 8px; }
-    .option-list input { width: calc(100% - 50px); display: inline-block; }
-    .option-list button { background: #dc3545; }
-    canvas { width: 100% !important; max-height: 300px; }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      max-width: 700px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    input, button, select, textarea {
+      width: 100%;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background: #1d4ed8; }
+    .section {
+      margin-top: 30px;
+    }
+    .option-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .option-input input { flex: 1; }
+    canvas { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>AFPI QuickVote</h1>
-
-  <div id="adminPanel" style="display:none;">
-    <h2>Tambah Context Baru</h2>
-    <input type="text" id="titleInput" placeholder="Judul konteks..." />
-    <div class="option-list" id="optionList">
-      <input type="text" placeholder="Opsi 1" />
+  <h1>🗳️ Simple Online Voting System</h1>
+  <div class="container">
+    <!-- ADMIN SECTION -->
+    <div id="adminSection" class="section" style="display:none;">
+      <h2>Create Voting Context</h2>
+      <form id="createContextForm">
+        <input id="contextTitle" placeholder="Enter vote title..." required />
+        <div id="optionsContainer">
+          <div class="option-input">
+            <input placeholder="Option 1" required />
+          </div>
+        </div>
+        <button type="button" id="addOption">+ Add Option</button>
+        <button type="submit">Create Context</button>
+      </form>
     </div>
-    <button id="addOptionBtn">+ Tambah Opsi</button>
-    <button id="createContextBtn">Simpan Context</button>
-    <hr/>
-    <h2>Daftar Context</h2>
-    <div id="adminContexts"></div>
-  </div>
 
-  <div id="voterPanel" style="display:none;">
-    <label><b>Token Anda:</b></label>
-    <input type="text" id="tokenInput" placeholder="Masukkan token unik Anda..." />
-    <div id="contextsContainer"></div>
+    <!-- VOTER SECTION -->
+    <div id="voterSection" class="section">
+      <h2>Cast Your Vote</h2>
+      <select id="contextSelect"></select>
+      <div id="voteOptions"></div>
+      <input id="tokenInput" placeholder="Enter your unique token" />
+      <button id="submitVote">Submit Vote</button>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="section">
+      <h2>Results</h2>
+      <button id="refreshResults">Refresh Results</button>
+      <canvas id="resultsChart" width="400" height="200"></canvas>
+    </div>
   </div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbx3x9x5CgsZJs2ppyv9ngxKbBpTu6O9ZbEy8LY2Wa7n18B8cj7UzZs-jqYXCoYII7--IA/exec";
-    const isAdmin = new URLSearchParams(window.location.search).get("admin") === "true";
-    const tokenInput = document.getElementById("tokenInput");
-    let chartInstances = {};
+    const isAdmin = window.location.search.includes("admin=1");
+    document.getElementById("adminSection").style.display = isAdmin ? "block" : "none";
 
-    document.addEventListener("DOMContentLoaded", () => {
-      if (isAdmin) {
-        document.getElementById("adminPanel").style.display = "block";
-        setupAdmin();
-      } else {
-        document.getElementById("voterPanel").style.display = "block";
-        loadContexts();
-        setInterval(loadContexts, 5000); // refresh every 5s
-      }
-    });
+    let chart;
+    const ctxSelect = document.getElementById("contextSelect");
+    const voteOptionsDiv = document.getElementById("voteOptions");
 
-    async function apiGet(params = {}) {
-      const query = new URLSearchParams(params).toString();
-      const res = await fetch(`${API_URL}?${query}`);
-      return res.json();
-    }
-
+    // ---- Helper function without JSON ----
     async function apiPost(data = {}) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      });
+      const formData = new FormData();
+      for (const key in data) formData.append(key, data[key]);
+      const res = await fetch(API_URL, { method: "POST", body: formData });
       return res.json();
     }
 
-    /* ---------------- ADMIN PANEL ---------------- */
-    function setupAdmin() {
-      const addOptionBtn = document.getElementById("addOptionBtn");
-      const createContextBtn = document.getElementById("createContextBtn");
-      addOptionBtn.onclick = () => {
-        const div = document.createElement("div");
-        div.innerHTML = `<input type="text" placeholder="Opsi tambahan" />`;
-        document.getElementById("optionList").appendChild(div);
-      };
-      createContextBtn.onclick = async () => {
-        const title = document.getElementById("titleInput").value.trim();
-        const options = [...document.querySelectorAll("#optionList input")]
-          .map(i => i.value.trim()).filter(v => v);
-        if (!title || options.length === 0) {
-          alert("Isi judul dan minimal satu opsi");
-          return;
-        }
-        const resp = await apiPost({ action: "createContext", title, options });
-        if (resp.success) {
-          alert("Context dibuat!");
-          document.getElementById("titleInput").value = "";
-          document.getElementById("optionList").innerHTML = `<input type="text" placeholder="Opsi 1" />`;
-          loadAdminContexts();
-        } else alert(resp.message);
-      };
-      loadAdminContexts();
-      setInterval(loadAdminContexts, 5000);
+    async function apiGet(params = "") {
+      const res = await fetch(`${API_URL}?${params}`);
+      return res.json();
     }
 
-    async function loadAdminContexts() {
-      const resp = await apiGet({ action: "getContexts" });
-      const cont = document.getElementById("adminContexts");
-      cont.innerHTML = "";
-      if (!resp.success) return;
-      resp.contexts.forEach(ctx => {
-        const card = document.createElement("div");
-        card.className = "context-card";
-        const votes = Object.entries(ctx.votes).map(([opt, cnt]) => `<li>${opt}: ${cnt}</li>`).join("");
-        card.innerHTML = `
-          <b>${ctx.title}</b> (${ctx.id})<br/>
-          <ul>${votes}</ul>
-          <button onclick="deleteContext('${ctx.id}')">Hapus</button>
-        `;
-        cont.appendChild(card);
-      });
-    }
-
-    async function deleteContext(id) {
-      if (!confirm("Yakin hapus context ini?")) return;
-      const resp = await apiPost({ action: "deleteContext", contextId: id });
-      if (resp.success) loadAdminContexts();
-      else alert(resp.message);
-    }
-
-    /* ---------------- VOTER PANEL ---------------- */
+    // ---- Load contexts ----
     async function loadContexts() {
-      const resp = await apiGet({ action: "getContexts" });
-      const cont = document.getElementById("contextsContainer");
-      cont.innerHTML = "";
-      if (!resp.success) return;
-      resp.contexts.forEach(ctx => {
-        const card = document.createElement("div");
-        card.className = "context-card";
-        const already = localStorage.getItem("voted_" + ctx.id);
-        let html = `<h3>${ctx.title}</h3>`;
-        if (!already) {
-          html += `<select id="select_${ctx.id}">${ctx.options.map(o => `<option value="${o}">${o}</option>`)}</select>
-          <button onclick="submitVote('${ctx.id}')">Vote</button>`;
-        } else {
-          html += `<p><i>Anda sudah vote: ${already}</i></p>`;
-        }
-        html += `<canvas id="chart_${ctx.id}"></canvas>`;
-        card.innerHTML = html;
-        cont.appendChild(card);
-        renderChart(ctx);
+      const json = await apiGet("action=getContexts");
+      ctxSelect.innerHTML = "";
+      if (!json.success || !json.contexts?.length) {
+        ctxSelect.innerHTML = `<option>No context available</option>`;
+        return;
+      }
+      json.contexts.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.title;
+        ctxSelect.appendChild(opt);
+      });
+      renderOptions();
+    }
+
+    // ---- Render options ----
+    async function renderOptions() {
+      const selectedId = ctxSelect.value;
+      if (!selectedId) return;
+      const json = await apiGet("action=getContexts");
+      const ctx = json.contexts.find(c => c.id === selectedId);
+      if (!ctx) return;
+      voteOptionsDiv.innerHTML = "";
+      ctx.options.forEach(opt => {
+        const div = document.createElement("div");
+        div.innerHTML = `<label><input type='radio' name='voteOption' value='${opt}'> ${opt}</label>`;
+        voteOptionsDiv.appendChild(div);
       });
     }
 
-    async function submitVote(contextId) {
-      const token = tokenInput.value.trim();
-      if (!token) return alert("Masukkan token unik Anda");
-      const choice = document.getElementById("select_" + contextId).value;
-      const already = localStorage.getItem("voted_" + contextId);
-      if (already) return alert("Anda sudah vote untuk context ini");
-      const resp = await apiPost({ action: "vote", contextId, token, choice });
-      if (resp.success) {
-        localStorage.setItem("voted_" + contextId, choice);
-        alert("Vote berhasil!");
+    // ---- Create context (Admin only) ----
+    if (isAdmin) {
+      document.getElementById("addOption").onclick = () => {
+        const div = document.createElement("div");
+        div.classList.add("option-input");
+        div.innerHTML = `<input placeholder="New Option" required />`;
+        document.getElementById("optionsContainer").appendChild(div);
+      };
+
+      document.getElementById("createContextForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const title = document.getElementById("contextTitle").value.trim();
+        const options = Array.from(document.querySelectorAll("#optionsContainer input"))
+          .map(i => i.value.trim()).filter(Boolean);
+        const res = await apiPost({ action: "createContext", title, options: JSON.stringify(options) });
+        alert(res.message || "Context created!");
         loadContexts();
-      } else alert(resp.message);
+      };
     }
 
-    function renderChart(ctx) {
-      const canvas = document.getElementById("chart_" + ctx.id);
-      const data = {
-        labels: Object.keys(ctx.votes),
-        datasets: [{
-          label: "Jumlah Vote",
-          data: Object.values(ctx.votes),
-          backgroundColor: "rgba(0,123,255,0.5)",
-          borderColor: "#007bff",
-          borderWidth: 1
-        }]
-      };
-      if (chartInstances[ctx.id]) {
-        chartInstances[ctx.id].data = data;
-        chartInstances[ctx.id].update();
-      } else {
-        chartInstances[ctx.id] = new Chart(canvas, {
-          type: "bar",
-          data: data,
-          options: { scales: { y: { beginAtZero: true, precision: 0 } } }
-        });
+    // ---- Submit vote ----
+    document.getElementById("submitVote").onclick = async () => {
+      const contextId = ctxSelect.value;
+      const choice = document.querySelector("input[name='voteOption']:checked")?.value;
+      const token = document.getElementById("tokenInput").value.trim();
+      if (!contextId || !choice || !token) {
+        alert("Please select context, option, and enter token!");
+        return;
       }
+      const fingerprint = navigator.userAgent;
+      const res = await apiPost({
+        action: "submitVote",
+        contextId,
+        choice,
+        token,
+        fingerprint
+      });
+      alert(res.message || "Vote recorded!");
+      loadResults();
+    };
+
+    // ---- Load results ----
+    async function loadResults() {
+      const contextId = ctxSelect.value;
+      if (!contextId) return;
+      const json = await apiGet(`action=getResults&contextId=${contextId}`);
+      if (!json.success) return alert("Error loading results");
+
+      const labels = Object.keys(json.results);
+      const data = Object.values(json.results);
+
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("resultsChart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Votes",
+            data,
+            backgroundColor: "rgba(37,99,235,0.7)"
+          }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
     }
+
+    document.getElementById("refreshResults").onclick = loadResults;
+    ctxSelect.onchange = () => { renderOptions(); loadResults(); };
+
+    loadContexts();
   </script>
 </body>
 </html>

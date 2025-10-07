@@ -183,6 +183,7 @@
         alert("Please select context, option, and enter token!");
         return;
       }
+
       const fingerprint = navigator.userAgent;
       const res = await apiPost({
         action: "submitVote",
@@ -191,7 +192,13 @@
         token,
         fingerprint
       });
-      alert(res.message || "Vote recorded!");
+
+      if (!res.success) {
+        alert(res.message || "Vote failed!");
+        return;
+      }
+
+      alert("Vote recorded successfully!");
       loadResults();
     };
 

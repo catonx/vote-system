@@ -136,30 +136,43 @@
         opt.textContent = c.title;
         ctxSelect.appendChild(opt);
       });
-      renderOptions();
+      // Pass the first context to renderOptions
+      if (json.contexts.length > 0) {
+        renderOptions(json.contexts[0]);
+      }
     }
 
     // ---- Render options ----
-    async function renderOptions(ctx) {
-      // Ensure options is an array
+    async function renderOptions() {
+      const selectedId = ctxSelect.value;
+      if (!selectedId) return;
+
+      const json = await apiGet("action=getContexts");
+      const ctx = json.contexts.find(c => c.id === selectedId);
+      if (!ctx) return;
+
+      console.log("Loaded context:", ctx);
+
+      // ✅ Ensure options is an array
       let options = ctx.options;
       if (typeof options === "string") {
         try {
-            options = JSON.parse(options);
+          options = JSON.parse(options);
         } catch (e) {
-            console.error("Failed to parse options:", e);
-            options = [];
+          console.error("Failed to parse options:", e);
+          options = [];
         }
-    }
-      const voteOptionsDiv.innerHTML = document.getElementById("voteOptions");
+      }
+
+      const voteOptionsDiv = document.getElementById("voteOptions");
       voteOptionsDiv.innerHTML = "";
 
       options.forEach(opt => {
         const div = document.createElement("div");
-        div.innerHTML = `<label><input type='radio' name='voteOption' value='${opt}'> ${opt}</label>`;
+        div.innerHTML = `<label><input type="radio" name="voteOption" value="${opt}"> ${opt}</label>`;
         voteOptionsDiv.appendChild(div);
       });
-    }
+    } 
 
     // ---- Create context (Admin only) ----
     if (isAdmin) {
@@ -235,7 +248,15 @@
     }
 
     document.getElementById("refreshResults").onclick = loadResults;
-    ctxSelect.onchange = () => { renderOptions(); loadResults(); };
+    ctxSelect.onchange = async () => {
+      // Fetch selected context and pass to renderOptions
+      const json = await apiGet("action=getContexts");
+      const selectedCtx = json.contexts?.find(c => c.id === ctxSelect.value);
+      if (selectedCtx) {
+        renderOptions(selectedCtx);
+      }
+      loadResults();
+    };
 
     loadContexts();
   </script>

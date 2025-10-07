@@ -140,14 +140,21 @@
     }
 
     // ---- Render options ----
-    async function renderOptions() {
-      const selectedId = ctxSelect.value;
-      if (!selectedId) return;
-      const json = await apiGet("action=getContexts");
-      const ctx = json.contexts.find(c => c.id === selectedId);
-      if (!ctx) return;
+    async function renderOptions(ctx) {
+      // Ensure options is an array
+      let options = ctx.options;
+      if (typeof options === "string") {
+        try {
+            options = JSON.parse(options);
+        } catch (e) {
+            console.error("Failed to parse options:", e);
+            options = [];
+        }
+    }
+      const voteOptionsDiv.innerHTML = document.getElementById("voteOptions");
       voteOptionsDiv.innerHTML = "";
-      ctx.options.forEach(opt => {
+
+      options.forEach(opt => {
         const div = document.createElement("div");
         div.innerHTML = `<label><input type='radio' name='voteOption' value='${opt}'> ${opt}</label>`;
         voteOptionsDiv.appendChild(div);

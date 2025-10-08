@@ -51,9 +51,37 @@
     }
     .option-input input { flex: 1; }
     canvas { margin-top: 20px; }
+    #loadingOverlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.7);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+      font-size: 18px;
+      color: #2563eb;
+      font-weight: 500;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #2563eb;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <div id="loadingOverlay">
+    <div class="spinner"></div> Loading...
+  </div>
   <h1>🗳️ Simple Online Voting System</h1>
   <div class="container">
     <!-- ADMIN SECTION -->
@@ -70,6 +98,13 @@
         <button type="submit">Create Context</button>
       </form>
     </div>
+    <div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.7);z-index:999;justify-content:center;align-items:center;font-weight:500;color:#2563eb;">
+      <div style="border:4px solid #f3f3f3;border-top:4px solid #2563eb;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin-right:8px;"></div>
+        Loading...
+    </div>
+    <style>
+    @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+    </style>
 
     <!-- VOTER SECTION -->
     <div id="voterSection" class="section">
@@ -104,6 +139,10 @@
     //   const res = await fetch(API_URL, { method: "POST", body: formData });
     //   return res.json();
     // }
+    function showLoading(show = true) {
+      const overlay = document.getElementById("loadingOverlay");
+      if (overlay) overlay.style.display = show ? "flex" : "none";
+    }
     async function apiPost(data = {}) {
       const formData = new FormData();
       for (const key in data) {
@@ -144,12 +183,19 @@
 
     // ---- Render options ----
     async function renderOptions() {
+      showLoading(true);
       const selectedId = ctxSelect.value;
-      if (!selectedId) return;
+      if (!selectedId) {
+        showLoading(false);
+        return;
+      }
 
       const json = await apiGet("action=getContexts");
       const ctx = json.contexts.find(c => c.id === selectedId);
-      if (!ctx) return;
+      if (!ctx) {
+        showLoading(false);
+        return;
+      }
 
       console.log("Loaded context:", ctx);
 
@@ -172,6 +218,7 @@
         div.innerHTML = `<label><input type="radio" name="voteOption" value="${opt}"> ${opt}</label>`;
         voteOptionsDiv.appendChild(div);
       });
+      showLoading(false);
     } 
 
     // ---- Create context (Admin only) ----
@@ -196,30 +243,38 @@
 
     // ---- Submit vote ----
     document.getElementById("submitVote").onclick = async () => {
-      const contextId = ctxSelect.value;
-      const choice = document.querySelector("input[name='voteOption']:checked")?.value;
-      const token = document.getElementById("tokenInput").value.trim();
-      if (!contextId || !choice || !token) {
-        alert("Please select context, option, and enter token!");
-        return;
+      showLoading(true);
+      try {
+        const contextId = ctxSelect.value;
+        const choice = document.querySelector("input[name='voteOption']:checked")?.value;
+        const token = document.getElementById("tokenInput").value.trim();
+        if (!contextId || !choice || !token) {
+          alert("Please select context, option, and enter token!");
+          return;
+        }
+
+        const fingerprint = navigator.userAgent;
+        const res = await apiPost({
+          action: "submitVote",
+          contextId,
+          choice,
+          token,
+          fingerprint
+        });
+
+        if (!res.success) {
+          alert(res.message || "Vote failed!");
+          return;
+        }
+
+        alert("Vote recorded successfully!");
+        await loadResults(); // tambahkan await agar menunggu selesai sebelum tutup loading
+      } catch (err) {
+        console.error("Vote error:", err);
+        alert("Unexpected error submitting vote!");
+      } finally {
+        showLoading(false); // 🔹 Tutup indikator loading
       }
-
-      const fingerprint = navigator.userAgent;
-      const res = await apiPost({
-        action: "submitVote",
-        contextId,
-        choice,
-        token,
-        fingerprint
-      });
-
-      if (!res.success) {
-        alert(res.message || "Vote failed!");
-        return;
-      }
-
-      alert("Vote recorded successfully!");
-      loadResults();
     };
 
     // ---- Load results ----

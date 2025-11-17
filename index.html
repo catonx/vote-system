@@ -6,6 +6,30 @@
   <title>Online Voting System</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 10px 0;
+    }
+
+    .afpi-logo {
+      width: 160px;
+      max-width: 60%;
+      margin-bottom: 10px;
+    }
+
+    .title-main {
+      font-size: 26px;
+      margin: 5px 0;
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: 14px;
+      color: #555;
+    }
     body {
       font-family: 'Inter', sans-serif;
       background: #f6f8fa;
@@ -82,7 +106,13 @@
   <div id="loadingOverlay">
     <div class="spinner"></div> Loading...
   </div>
-  <h1>🗳️ Simple Online Voting System</h1>
+  <div class="header">
+  <img src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png" 
+       alt="AFPI Logo" class="afpi-logo" />
+
+  <h1 class="title-main">AFPI Online Voting System</h1>
+  <p class="subtitle">Asosiasi Fintech Pendanaan Bersama Indonesia</p>
+</div>
   <div class="container">
     <!-- ADMIN SECTION -->
     <div id="adminSection" class="section" style="display:none;">

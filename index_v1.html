@@ -56,7 +56,6 @@
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 15px;
-      box-sizing: border-box;
     }
     button {
       background: #2563eb;
@@ -75,11 +74,12 @@
       align-items: center;
     }
     .option-input input { flex: 1; }
-    canvas { margin-top: 20px; max-width:100%; }
+    canvas { margin-top: 20px; }
     #loadingOverlay {
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
+      /*background: rgba(255,255,255,0.7);/*  /* semi transparan terang */
       background: rgba(0, 0, 0, 0.45); /* semi transparan gelap */
       z-index: 999;
       justify-content: center;
@@ -91,17 +91,17 @@
       backdrop-filter: blur(1px); /* efek modern */
     }
     .spinner {
-      border: 4px solid rgba(255,255,255,0.25);
-      border-top: 4px solid #ffffff;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #2563eb;
       border-radius: 50%;
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       animation: spin 1s linear infinite;
-      margin-bottom: 10px;
+      margin-right: 10px;
     }
     #loadingOverlayText {
       color: #ffffff;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: 500;
       text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
@@ -146,21 +146,6 @@
     .vote-radio {
       display: none; /* sembunyikan radio asli */
     }
-
-    /* shimmer skeleton */
-    .shimmer {
-      background: linear-gradient(90deg, #e6e6e6 0%, #f5f5f5 50%, #e6e6e6 100%);
-      background-size: 200% 100%;
-      border-radius: 10px;
-      height: 76px;
-      margin: 10px 0;
-      animation: shimmer 1.2s infinite;
-    }
-    @keyframes shimmer {
-      0% { background-position: -150% 0; }
-      100% { background-position: 150% 0; }
-    }
-
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
@@ -168,18 +153,16 @@
   </style>
 </head>
 <body>
-  <!-- single loading overlay -->
-  <div id="loadingOverlay" role="status" aria-hidden="true">
-    <div class="spinner" aria-hidden="true"></div>
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
     <div id="loadingOverlayText">Loading...</div>
   </div>
-
   <div class="header">
-    <img src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png" 
-         alt="AFPI Logo" class="afpi-logo" />
-    <h1 class="title-main">Online Voting System</h1>
-  </div>
+  <img src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png" 
+       alt="AFPI Logo" class="afpi-logo" />
 
+  <h1 class="title-main">Online Voting System</h1>
+</div>
   <div class="container">
     <!-- ADMIN SECTION -->
     <div id="adminSection" class="section" style="display:none;">
@@ -195,6 +178,13 @@
         <button type="submit">Create Context</button>
       </form>
     </div>
+    <div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.7);z-index:999;justify-content:center;align-items:center;font-weight:500;color:#2563eb;">
+      <div style="border:4px solid #f3f3f3;border-top:4px solid #2563eb;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin-right:8px;"></div>
+        Loading...
+    </div>
+    <style>
+    @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+    </style>
 
     <!-- VOTER SECTION -->
     <div id="voterSection" class="section">
@@ -222,13 +212,17 @@
     const ctxSelect = document.getElementById("contextSelect");
     const voteOptionsDiv = document.getElementById("voteOptions");
 
-    function showLoading(show = true, text = "Loading...") {
+    // ---- Helper function without JSON ----
+    // async function apiPost(data = {}) {
+    //   const formData = new FormData();
+    //   for (const key in data) formData.append(key, data[key]);
+    //   const res = await fetch(API_URL, { method: "POST", body: formData });
+    //   return res.json();
+    // }
+    function showLoading(show = true) {
       const overlay = document.getElementById("loadingOverlay");
-      if (!overlay) return;
-      overlay.style.display = show ? "flex" : "none";
-      document.getElementById("loadingOverlayText").textContent = text;
+      if (overlay) overlay.style.display = show ? "flex" : "none";
     }
-
     async function apiPost(data = {}) {
       const formData = new FormData();
       for (const key in data) {
@@ -240,135 +234,88 @@
         body: formData,
       });
 
-      return res.json();
+        return res.json();
     }
-
     async function apiGet(params = "") {
-      const res = await fetch(`${API_URL}?${params}`, { cache: "no-store" });
+      const res = await fetch(`${API_URL}?${params}`);
       return res.json();
     }
 
     // ---- Load contexts ----
     async function loadContexts() {
-      showLoading(true, "Loading contexts...");
-      try {
-        const json = await apiGet("action=getContexts");
-        ctxSelect.innerHTML = "";
-        if (!json.success || !json.contexts?.length) {
-          ctxSelect.innerHTML = `<option value="">No context available</option>`;
-          voteOptionsDiv.innerHTML = `<div class="shimmer"></div>`;
-          showLoading(false);
-          return;
-        }
-        json.contexts.forEach(c => {
-          const opt = document.createElement("option");
-          opt.value = c.id;
-          opt.textContent = c.title;
-          ctxSelect.appendChild(opt);
-        });
-        // select first by default
-        if (ctxSelect.options.length > 0) ctxSelect.selectedIndex = 0;
-        // render the first context
-        await renderOptions(); // no param required
-        await loadResults();
-      } catch (err) {
-        console.error("loadContexts error", err);
-      } finally {
-        showLoading(false);
+      const json = await apiGet("action=getContexts");
+      ctxSelect.innerHTML = "";
+      if (!json.success || !json.contexts?.length) {
+        ctxSelect.innerHTML = `<option>No context available</option>`;
+        return;
+      }
+      json.contexts.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.title;
+        ctxSelect.appendChild(opt);
+      });
+      // Pass the first context to renderOptions
+      if (json.contexts.length > 0) {
+        renderOptions(json.contexts[0]);
       }
     }
 
-    // ---- Render options (accept optional ctxArg or use select) ----
-    async function renderOptions(ctxArg) {
-      showLoading(true, "Loading options...");
-      // shimmer
-      voteOptionsDiv.innerHTML = `<div class="shimmer"></div><div class="shimmer"></div><div class="shimmer"></div>`;
-
-      try {
-        let ctx = ctxArg;
-        if (!ctx) {
-          // get selected id and fetch contexts
-          const selectedId = ctxSelect.value;
-          if (!selectedId) {
-            voteOptionsDiv.innerHTML = '';
-            showLoading(false);
-            return;
-          }
-          const json = await apiGet("action=getContexts");
-          ctx = json.contexts?.find(c => c.id === selectedId);
-        }
-
-        if (!ctx) {
-          voteOptionsDiv.innerHTML = '';
-          showLoading(false);
-          return;
-        }
-
-        // parse options
-        let options = ctx.options;
-        if (typeof options === "string") {
-          try {
-            options = JSON.parse(options);
-          } catch (e) {
-            console.error("Failed to parse options:", e);
-            options = [];
-          }
-        }
-        voteOptionsDiv.innerHTML = "";
-
-        options.forEach((opt, idx) => {
-          // If option is object support name/desc/img, else string
-          let name = opt;
-          let img = `https://picsum.photos/seed/${encodeURIComponent(opt)}/200`;
-          let desc = "";
-          if (typeof opt === "object" && opt !== null) {
-            name = opt.name || opt.title || String(opt);
-            img = opt.img || img;
-            desc = opt.desc || "";
-          }
-
-          const safeId = String(name).replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
-          const div = document.createElement("div");
-          div.className = "vote-card";
-
-          div.innerHTML = `
-            <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}">
-            <img src="${img}" alt="img" onerror="this.src='https://i.ibb.co/4pQ5Cz5/placeholder.jpg'">
-            <div>
-              <div class="vote-option-label">${escapeHtml(name)}</div>
-              ${desc ? `<div style="font-size:13px;color:#666;margin-top:4px;">${escapeHtml(desc)}</div>` : ''}
-            </div>
-          `;
-
-          // click selects radio and highlights card
-          div.onclick = () => {
-            const el = document.getElementById(`opt_${safeId}`);
-            if (el) el.checked = true;
-            document.querySelectorAll(".vote-card").forEach(c => c.classList.remove("selected"));
-            div.classList.add("selected");
-          };
-
-          voteOptionsDiv.appendChild(div);
-        });
-
-      } catch (err) {
-        console.error("renderOptions error", err);
-        voteOptionsDiv.innerHTML = `<div class="shimmer"></div>`;
-      } finally {
+    // ---- Render options ----
+    async function renderOptions() {
+      showLoading(true);
+      const selectedId = ctxSelect.value;
+      if (!selectedId) {
         showLoading(false);
+        return;
       }
-    }
 
-    // simple HTML escaping to avoid broken attributes
-    function escapeHtml(str) {
-      if (str === null || str === undefined) return '';
-      return String(str)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+      const json = await apiGet("action=getContexts");
+      const ctx = json.contexts.find(c => c.id === selectedId);
+      if (!ctx) {
+        showLoading(false);
+        return;
+      }
+
+      console.log("Loaded context:", ctx);
+
+      // ✅ Ensure options is an array
+      let options = ctx.options;
+      if (typeof options === "string") {
+        try {
+          options = JSON.parse(options);
+        } catch (e) {
+          console.error("Failed to parse options:", e);
+          options = [];
+        }
+      }
+
+      const voteOptionsDiv = document.getElementById("voteOptions");
+      voteOptionsDiv.innerHTML = "";
+
+      options.forEach(opt => {
+        const div = document.createElement("div");
+        div.className = "vote-card";
+
+        const safeId = opt.replace(/\s+/g, "_");
+        div.innerHTML = `
+        <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${opt}">
+        <img src="https://picsum.photos/seed/kandidat1/200" alt="img">
+        <div class="vote-option-label">${opt}</div>
+      `;
+
+      // Klik card = pilih radio
+        div.onclick = () => {
+          document.getElementById(`opt_${safeId}`).checked = true;
+
+          // Highlight
+          document.querySelectorAll(".vote-card").forEach(c => c.classList.remove("selected"));
+          div.classList.add("selected");
+        };
+        voteOptionsDiv.appendChild(div);
+      });
+      showLoading(false);
+    } 
 
     // ---- Create context (Admin only) ----
     if (isAdmin) {
@@ -384,29 +331,20 @@
         const title = document.getElementById("contextTitle").value.trim();
         const options = Array.from(document.querySelectorAll("#optionsContainer input"))
           .map(i => i.value.trim()).filter(Boolean);
-        showLoading(true, "Creating context...");
-        try {
-          const res = await apiPost({ action: "createContext", title, options: JSON.stringify(options) });
-          alert(res.message || "Context created!");
-          await loadContexts();
-        } catch (err) {
-          console.error("create context error", err);
-          alert("Failed to create context");
-        } finally {
-          showLoading(false);
-        }
+        const res = await apiPost({ action: "createContext", title, options: JSON.stringify(options) });
+        alert(res.message || "Context created!");
+        loadContexts();
       };
     }
 
     // ---- Submit vote ----
     document.getElementById("submitVote").onclick = async () => {
-      showLoading(true, "Processing vote...");
+      showLoading(true);
       try {
         const contextId = ctxSelect.value;
         const choice = document.querySelector("input[name='voteOption']:checked")?.value;
         const token = document.getElementById("tokenInput").value.trim();
         if (!contextId || !choice || !token) {
-          showLoading(false);
           alert("Please select context, option, and enter token!");
           return;
         }
@@ -421,18 +359,17 @@
         });
 
         if (!res.success) {
-          showLoading(false);
           alert(res.message || "Vote failed!");
           return;
         }
 
         alert("Vote recorded successfully!");
-        await loadResults(); // menunggu sampai chart update
+        await loadResults(); // tambahkan await agar menunggu selesai sebelum tutup loading
       } catch (err) {
         console.error("Vote error:", err);
         alert("Unexpected error submitting vote!");
       } finally {
-        showLoading(false);
+        showLoading(false); // 🔹 Tutup indikator loading
       }
     };
 
@@ -440,48 +377,38 @@
     async function loadResults() {
       const contextId = ctxSelect.value;
       if (!contextId) return;
-      showLoading(true, "Loading results...");
-      try {
-        const json = await apiGet(`action=getResults&contextId=${contextId}`);
-        if (!json.success) {
-          console.warn("Error getResults", json);
-          showLoading(false);
-          return;
-        }
+      const json = await apiGet(`action=getResults&contextId=${contextId}`);
+      if (!json.success) return alert("Error loading results");
 
-        const labels = Object.keys(json.results);
-        const data = Object.values(json.results);
+      const labels = Object.keys(json.results);
+      const data = Object.values(json.results);
 
-        if (chart) chart.destroy();
-        chart = new Chart(document.getElementById("resultsChart"), {
-          type: "bar",
-          data: {
-            labels,
-            datasets: [{
-              label: "Votes",
-              data,
-              backgroundColor: "rgba(37,99,235,0.7)"
-            }]
-          },
-          options: { scales: { y: { beginAtZero: true } }, plugins:{legend:{display:false}} }
-        });
-
-      } catch (err) {
-        console.error("loadResults error", err);
-      } finally {
-        showLoading(false);
-      }
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("resultsChart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Votes",
+            data,
+            backgroundColor: "rgba(37,99,235,0.7)"
+          }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
     }
 
     document.getElementById("refreshResults").onclick = loadResults;
-
-    // when select changes -> renderOptions + refresh results
     ctxSelect.onchange = async () => {
-      await renderOptions(); // now renderOptions will use selected value
-      await loadResults();
+      // Fetch selected context and pass to renderOptions
+      const json = await apiGet("action=getContexts");
+      const selectedCtx = json.contexts?.find(c => c.id === ctxSelect.value);
+      if (selectedCtx) {
+        renderOptions(selectedCtx);
+      }
+      loadResults();
     };
 
-    // initial
     loadContexts();
   </script>
 </body>

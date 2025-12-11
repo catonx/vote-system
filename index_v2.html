@@ -165,26 +165,6 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    #voterModal {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 1200;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-    }
-    #voterModal .modal-card {
-      width: 100%; max-width: 420px;
-      background: #fff;
-      border-radius: 12px;
-      padding: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-    #voterModal h3 { margin-top:0; color:#1f2937; }
-    #voterModal input { margin-bottom:10px; }
-    #voterModal .row { display:flex; gap:8px; }
-    #voterModal .row button { flex:1; }
   </style>
 </head>
 <body>
@@ -198,19 +178,6 @@
     <img src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png" 
          alt="AFPI Logo" class="afpi-logo" />
     <h1 class="title-main">Online Voting System</h1>
-  </div>
-  <!-- VOTER MODAL (hidden until needed) -->
-  <div id="voterModal" aria-hidden="true">
-    <div class="modal-card">
-      <h3>Masukkan Nama & Email</h3>
-      <p style="color:#374151; font-size:14px;">Hasil akhir akan dikirimkan ke email Anda.</p>
-      <input id="voterName" placeholder="Nama lengkap" type="text" />
-      <input id="voterEmail" placeholder="email@domain.com" type="email" />
-      <div class="row">
-        <button id="voterCancel" type="button">Batal</button>
-        <button id="voterSave" type="button" style="background:#2563eb;color:#fff;">Simpan</button>
-      </div>
-    </div>
   </div>
 
   <div class="container">
@@ -254,9 +221,6 @@
     let chart;
     const ctxSelect = document.getElementById("contextSelect");
     const voteOptionsDiv = document.getElementById("voteOptions");
-
-    let lastVoteRowSaved = null;
-    let pendingVoteRow = null;
 
     function showLoading(show = true, text = "Loading...") {
       const overlay = document.getElementById("loadingOverlay");
@@ -435,238 +399,42 @@
     }
 
     // ---- Submit vote ----
-    document.getElementById("submitVote").addEventListener("click", async () => {
-      const contextId = ctxSelect.value;
-      const token = document.getElementById("tokenInput").value.trim();
-      const selected = document.querySelector("input[name='voteOption']:checked");
-
-      if (!contextId || !token || !selected) {
-        alert("Mohon pilih opsi dan masukkan token.");
-        return;
-      }
-
-      showLoading(true, "Submitting vote...");
-
-      // Simpan vote terlebih dahulu (seperti sistem kamu sebelumnya)
-      const result = await apiPost({
-        action: "submitVote",
-        contextId,
-        token,
-        choice: selected.value,
-      });
-
-      showLoading(false);
-
-      if (!result.success) {
-        alert(result.message || "Vote gagal.");
-        return;
-      }
-
-      // Simpan row vote sementara
-      pendingVoteRow = result.row;
-
-      // ==== TAMPILKAN MODAL IDENTITAS ====
-      document.getElementById("voterModal").style.display = "flex";
-
-      // Tunggu user tekan SAVE atau CANCEL
-      const emailConfirmed = await new Promise((resolve) => {
-          const btnCancel = document.getElementById("voterCancel");
-          const btnSave = document.getElementById("voterSave");
-
-          const cleanup = () => {
-              btnCancel.onclick = null;
-              btnSave.onclick = null;
-          };
-
-          btnCancel.onclick = () => {
-              cleanup();
-              resolve(null); // batal
-          };
-
-          btnSave.onclick = () => {
-              const name = document.getElementById("voterName").value.trim();
-              const email = document.getElementById("voterEmail").value.trim();
-
-              if (!name || !email) {
-                  alert("Nama dan email wajib diisi.");
-                  return;
-              }
-
-              cleanup();
-              resolve({ name, email });
-          };
-      });
-
-      // ==== FALLBACK: USER BATAL ====
-      if (!emailConfirmed) {
-          showLoading(true, "Membatalkan vote...");
-
-          await apiPost({
-              action: "deleteVote",
-              row: pendingVoteRow
-          });
-
+    document.getElementById("submitVote").onclick = async () => {
+      showLoading(true, "Processing vote...");
+      try {
+        const contextId = ctxSelect.value;
+        const choice = document.querySelector("input[name='voteOption']:checked")?.value;
+        const token = document.getElementById("tokenInput").value.trim();
+        if (!contextId || !choice || !token) {
           showLoading(false);
-
-          document.getElementById("voterModal").style.display = "none";
-          alert("Vote dibatalkan karena identitas tidak diisi.");
-          return;
-      }
-
-      // ==== SIMPAN IDENTITAS KE SHEET ====
-      showLoading(true, "Menyimpan identitas...");
-
-      await apiPost({
-          action: "saveVoterIdentity",
-          row: pendingVoteRow,
-          voters: `${emailConfirmed.name}-${emailConfirmed.email}`
-      });
-
-      showLoading(false);
-      document.getElementById("voterModal").style.display = "none";
-
-      alert("Vote berhasil disimpan.");
-      await loadResults();
-  });
-
-    async function sendVote(option, token, name, email) {
-      showLoading(true, "Submitting vote...");
-
-      try {
-        const res = await apiPost({
-          action: "submitVote",
-          option,
-          contextId: ctxSelect.value,
-          token,
-          voterName: name,
-          voterEmail: email
-        });
-
-        showLoading(false);
-
-        if (!res.success) return alert(res.message || "Failed to submit vote.");
-
-        alert("Vote submitted successfully!");
-        await loadResults();
-      } catch (err) {
-        console.error(err);
-        alert("Network error submitting vote.");
-        showLoading(false);
-      }
-    }
-
-// ---- Modal Logic ----
-    document.getElementById("voterCancel").addEventListener("click", () => {
-      pendingVoteRow = null; // HAPUS vote tertunda
-      document.getElementById("voterModal").style.display = "none";
-    });
-
-    document.getElementById("voterSave").addEventListener("click", async () => {
-      const name = document.getElementById("voterName").value.trim();
-      const email = document.getElementById("voterEmail").value.trim();
-
-      if (!name || !email) return alert("Nama & email wajib diisi.");
-
-      // Simpan identitas
-      localStorage.setItem("voter_name", name);
-      localStorage.setItem("voter_email", email);
-
-      document.getElementById("voterModal").style.display = "none";
-
-      // Jika ada vote tertunda → submit sekarang
-      if (pendingVoteRow) {
-        await sendVote(
-          pendingVoteRow.option,
-          pendingVoteRow.token,
-          name,
-          email
-        );
-        pendingVoteRow = null;
-      }
-    });
-
-    // Modal control
-    function openVoterModal(){
-      document.getElementById("voterModal").style.display = "flex";
-      document.getElementById("voterName").focus();
-    }
-    function closeVoterModal(){
-      document.getElementById("voterModal").style.display = "none";
-      document.getElementById("voterName").value = "";
-      document.getElementById("voterEmail").value = "";
-    }
-
-    //document.getElementById("voterCancel").onclick = () => {
-      // if the user cancels, we still have a vote recorded without voter info.
-      // You can choose to delete that row if you prefer. For now we keep it.
-      //closeVoterModal();
-      //alert("Anda membatalkan pengisian identitas. Vote tetap tersimpan (tanpa identitas).");
-    //};
-
-    document.getElementById("voterSave").onclick = async () => {
-      const name = document.getElementById("voterName").value.trim();
-      const email = document.getElementById("voterEmail").value.trim();
-      if (!name || !email) return alert("Nama dan email wajib diisi.");
-
-      if (!lastVoteRowSaved) return alert("Tidak ditemukan informasi vote untuk diperbarui.");
-
-      const voter = `${name}-${email}`;
-
-      showLoading(true, "Saving voter info...");
-      try {
-        const res = await apiPost({
-          action: "saveVoterInfo",
-          row: String(lastVoteRowSaved),
-          voter
-        });
-
-        if (!res.success) {
-          alert(res.message || "Gagal menyimpan identitas voter.");
+          alert("Please select context, option, and enter token!");
           return;
         }
 
-        alert("Identitas tersimpan. Terima kasih!");
-        closeVoterModal();
-        await loadResults(); // refresh chart
+        const fingerprint = navigator.userAgent;
+        const res = await apiPost({
+          action: "submitVote",
+          contextId,
+          choice,
+          token,
+          fingerprint
+        });
+
+        if (!res.success) {
+          showLoading(false);
+          alert(res.message || "Vote failed!");
+          return;
+        }
+
+        alert("Vote recorded successfully!");
+        await loadResults(); // menunggu sampai chart update
       } catch (err) {
-        console.error("save voter error", err);
-        alert("Terjadi kesalahan saat menyimpan identitas.");
+        console.error("Vote error:", err);
+        alert("Unexpected error submitting vote!");
       } finally {
         showLoading(false);
       }
     };
-    document.getElementById("voterCancel").addEventListener("click", async () => {
-      if (pendingVoteRow) {
-        showLoading(true);
-
-        await deleteVote(pendingVoteRow);
-
-        showLoading(false);
-
-        pendingVoteRow = null;
-      }
-
-      // TUTUP MODAL
-      document.getElementById("voterModal").style.display = "none";
-
-      alert("Vote dibatalkan. Identitas harus diisi.");
-    });
-
-    // ensure lastVoteRowSaved reset on context change or reload to avoid stale values
-    ctxSelect.onchange = async () => {
-      lastVoteRowSaved = null;
-      await renderOptions();
-      await loadResults();
-    };
-
-    // initial load
-    loadContexts();
-    async function deleteVote(row) {
-      return await apiPost({
-        action: "deleteVote",
-        row
-      });
-    }
 
     // ---- Load results ----
     async function loadResults() {

@@ -247,7 +247,8 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbx3x9x5CgsZJs2ppyv9ngxKbBpTu6O9ZbEy8LY2Wa7n18B8cj7UzZs-jqYXCoYII7--IA/exec";
+    //const API_URL = "https://script.google.com/macros/s/AKfycbx3x9x5CgsZJs2ppyv9ngxKbBpTu6O9ZbEy8LY2Wa7n18B8cj7UzZs-jqYXCoYII7--IA/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbyT9AdhZP_UwgEoMgrbMZwEdgR1uSwWgBjH-_9vcg_lgSEzgRDBK3993ap_fbQhu3e_aQ/exec";
     const isAdmin = window.location.search.includes("admin=1");
     document.getElementById("adminSection").style.display = isAdmin ? "block" : "none";
 
@@ -256,7 +257,7 @@
     const voteOptionsDiv = document.getElementById("voteOptions");
 
     let lastVoteRowSaved = null;
-    let pendingVoteRow = null;
+    let pendingVoteId = null;
 
     function showLoading(show = true, text = "Loading...") {
       const overlay = document.getElementById("loadingOverlay");
@@ -434,154 +435,144 @@
       };
     }
 
-    // ---- Submit vote ----
-    document.getElementById("submitVote").addEventListener("click", async () => {
-      const contextId = ctxSelect.value;
-      const token = document.getElementById("tokenInput").value.trim();
-      const selected = document.querySelector("input[name='voteOption']:checked");
+    //let pendingVoteRow = null; // will hold numeric row returned from submitVote
 
-      if (!contextId || !token || !selected) {
-        alert("Mohon pilih opsi dan masukkan token.");
-        return;
-      }
-
-      showLoading(true, "Submitting vote...");
-
-      // Simpan vote terlebih dahulu (seperti sistem kamu sebelumnya)
-      const result = await apiPost({
+// Helper: submit vote to backend and return response
+    async function submitVoteToBackend(contextId, choice, token, fingerprint) {
+      return await apiPost({
         action: "submitVote",
         contextId,
+        choice,
         token,
-        choice: selected.value,
+        fingerprint
       });
+    }
 
-      showLoading(false);
+    // Helper: delete vote row
+    async function deleteVoteRow(voteId) {
+      return await apiPost({ action: "deleteVote", voteId: String(voteId) });
+    }
 
-      if (!result.success) {
-        alert(result.message || "Vote gagal.");
+    // Helper: save voter info
+    async function saveVoterInfoRow(voteId, voterString) {
+      return await apiPost({ action: "saveVoterInfo", voteId: String(voteId), voter: voterString });
+    } 
+    
+    // ---- Submit vote ----
+    // CLICK: Submit Vote
+    document.getElementById("submitVote").addEventListener("click", async () => {
+      const selectedEl = document.querySelector("input[name='voteOption']:checked");
+      const token = document.getElementById("tokenInput").value.trim();
+      const contextId = ctxSelect.value;
+
+      if (!selectedEl) { alert("Please select a vote option."); return; }
+      if (!token) { alert("Token is required."); return; }
+      if (!contextId) { alert("Context not selected"); return; }
+
+      const choice = selectedEl.value;
+      const fingerprint = navigator.userAgent || "";
+
+      showLoading(true, "Submitting vote...");
+
+      // 1) submit vote to backend -> backend should append row and return row number
+      let res;
+      try {
+        //res = await submitVoteToBackend(contextId, choice, token, fingerprint);
+        res = await submitVoteToBackend(contextId, choice, token, fingerprint);
+        console.log("RAW submitVote response:", JSON.stringify(res));
+      } catch (err) {
+        showLoading(false);
+        console.error("Network error submitVote:", err);
+        alert("Network error when submitting vote.");
         return;
       }
 
-      // Simpan row vote sementara
-      pendingVoteRow = result.row;
-
-      // ==== TAMPILKAN MODAL IDENTITAS ====
-      document.getElementById("voterModal").style.display = "flex";
-
-      // Tunggu user tekan SAVE atau CANCEL
-      const emailConfirmed = await new Promise((resolve) => {
-          const btnCancel = document.getElementById("voterCancel");
-          const btnSave = document.getElementById("voterSave");
-
-          const cleanup = () => {
-              btnCancel.onclick = null;
-              btnSave.onclick = null;
-          };
-
-          btnCancel.onclick = () => {
-              cleanup();
-              resolve(null); // batal
-          };
-
-          btnSave.onclick = () => {
-              const name = document.getElementById("voterName").value.trim();
-              const email = document.getElementById("voterEmail").value.trim();
-
-              if (!name || !email) {
-                  alert("Nama dan email wajib diisi.");
-                  return;
-              }
-
-              cleanup();
-              resolve({ name, email });
-          };
-      });
-
-      // ==== FALLBACK: USER BATAL ====
-      if (!emailConfirmed) {
-          showLoading(true, "Membatalkan vote...");
-
-          await apiPost({
-              action: "deleteVote",
-              row: pendingVoteRow
-          });
-
-          showLoading(false);
-
-          document.getElementById("voterModal").style.display = "none";
-          alert("Vote dibatalkan karena identitas tidak diisi.");
-          return;
-      }
-
-      // ==== SIMPAN IDENTITAS KE SHEET ====
-      showLoading(true, "Menyimpan identitas...");
-
-      await apiPost({
-          action: "saveVoterIdentity",
-          row: pendingVoteRow,
-          voters: `${emailConfirmed.name}-${emailConfirmed.email}`
-      });
-
       showLoading(false);
-      document.getElementById("voterModal").style.display = "none";
 
-      alert("Vote berhasil disimpan.");
-      await loadResults();
-  });
-
-    async function sendVote(option, token, name, email) {
-      showLoading(true, "Submitting vote...");
-
-      try {
-        const res = await apiPost({
-          action: "submitVote",
-          option,
-          contextId: ctxSelect.value,
-          token,
-          voterName: name,
-          voterEmail: email
-        });
-
-        showLoading(false);
-
-        if (!res.success) return alert(res.message || "Failed to submit vote.");
-
-        alert("Vote submitted successfully!");
-        await loadResults();
-      } catch (err) {
-        console.error(err);
-        alert("Network error submitting vote.");
-        showLoading(false);
+      if (!res || !res.success) {
+        console.warn("submitVote result:", res);
+        alert(res?.message || "Failed to submit vote.");
+        return;
       }
-    }
+
+      // Save numeric voteId  for fallback & later saveVoterInfo
+      function isUUIDv4(str) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+      }
+
+      pendingVoteId = res.voteId;
+
+      if (!pendingVoteId || typeof pendingVoteId !== "string") {
+        console.error("Invalid voteId returned from backend", res);
+        alert("Server error: invalid voteId returned Bos.");
+        return;
+      }
+
+      // 2) Show modal and wait for user action (save or cancel)
+      openVoterModal();
+    });
 
 // ---- Modal Logic ----
-    document.getElementById("voterCancel").addEventListener("click", () => {
-      pendingVoteRow = null; // HAPUS vote tertunda
-      document.getElementById("voterModal").style.display = "none";
-    });
+      // Modal: Cancel -> delete pending vote
+      document.getElementById("voterCancel").addEventListener("click", async () => {
+      // If there's a pending vote row, delete it
+      if (pendingVoteId) {
+        showLoading(true, "Cancelling vote...");
+        try {
+          const del = await deleteVoteById(pendingVoteId);
+          if (!del || !del.success) {
+            console.warn("deleteVote failed:", del);
+            alert("Gagal menghapus vote. Cek logs.");
+          } else {
+            // success
+          }
+        } catch (err) {
+          console.error("deleteVote network error:", err);
+          alert("Network error while cancelling vote.");
+        } finally {
+          // clear local state and UI
+          pendingVoteId = null;
+          showLoading(false);
+          closeVoterModal();
+          alert("Vote dibatalkan karena identitas tidak diisi.");
+          // optionally reload results
+          await loadResults();
+        }
+      } else {
+        // nothing to delete
+        closeVoterModal();
+      }
+    });   
 
     document.getElementById("voterSave").addEventListener("click", async () => {
       const name = document.getElementById("voterName").value.trim();
       const email = document.getElementById("voterEmail").value.trim();
+      if (!name || !email) { alert("Nama & email wajib diisi."); return; }
+      if (!pendingVoteId) { alert("Tidak ada vote tertunda untuk disimpan."); return; }
 
-      if (!name || !email) return alert("Nama & email wajib diisi.");
+      const voterString = `${name}-${email}`;
 
-      // Simpan identitas
-      localStorage.setItem("voter_name", name);
-      localStorage.setItem("voter_email", email);
-
-      document.getElementById("voterModal").style.display = "none";
-
-      // Jika ada vote tertunda → submit sekarang
-      if (pendingVoteRow) {
-        await sendVote(
-          pendingVoteRow.option,
-          pendingVoteRow.token,
-          name,
-          email
-        );
-        pendingVoteRow = null;
+      showLoading(true, "Saving identity...");
+      try {
+        const res = await saveVoterInfoRow(pendingVoteId, voterString);
+        if (!res || !res.success) {
+          console.warn("saveVoterInfo failed:", res);
+          alert(res?.message || "Gagal menyimpan identitas.");
+          return;
+        }
+        // success
+        alert("Identitas tersimpan. Terima kasih!");
+        // close modal and clear state
+        pendingVoteId = null;
+        closeVoterModal();
+        // optionally persist name/email for future (if you want)
+        // localStorage.setItem("voter_name", name); localStorage.setItem("voter_email", email);
+        await loadResults();
+      } catch (err) {
+        console.error("saveVoterInfo network error:", err);
+        alert("Network error while saving identity.");
+      } finally {
+        showLoading(false);
       }
     });
 
@@ -596,78 +587,12 @@
       document.getElementById("voterEmail").value = "";
     }
 
-    //document.getElementById("voterCancel").onclick = () => {
-      // if the user cancels, we still have a vote recorded without voter info.
-      // You can choose to delete that row if you prefer. For now we keep it.
-      //closeVoterModal();
-      //alert("Anda membatalkan pengisian identitas. Vote tetap tersimpan (tanpa identitas).");
-    //};
-
-    document.getElementById("voterSave").onclick = async () => {
-      const name = document.getElementById("voterName").value.trim();
-      const email = document.getElementById("voterEmail").value.trim();
-      if (!name || !email) return alert("Nama dan email wajib diisi.");
-
-      if (!lastVoteRowSaved) return alert("Tidak ditemukan informasi vote untuk diperbarui.");
-
-      const voter = `${name}-${email}`;
-
-      showLoading(true, "Saving voter info...");
-      try {
-        const res = await apiPost({
-          action: "saveVoterInfo",
-          row: String(lastVoteRowSaved),
-          voter
-        });
-
-        if (!res.success) {
-          alert(res.message || "Gagal menyimpan identitas voter.");
-          return;
-        }
-
-        alert("Identitas tersimpan. Terima kasih!");
-        closeVoterModal();
-        await loadResults(); // refresh chart
-      } catch (err) {
-        console.error("save voter error", err);
-        alert("Terjadi kesalahan saat menyimpan identitas.");
-      } finally {
-        showLoading(false);
-      }
-    };
-    document.getElementById("voterCancel").addEventListener("click", async () => {
-      if (pendingVoteRow) {
-        showLoading(true);
-
-        await deleteVote(pendingVoteRow);
-
-        showLoading(false);
-
-        pendingVoteRow = null;
-      }
-
-      // TUTUP MODAL
-      document.getElementById("voterModal").style.display = "none";
-
-      alert("Vote dibatalkan. Identitas harus diisi.");
-    });
-
     // ensure lastVoteRowSaved reset on context change or reload to avoid stale values
     ctxSelect.onchange = async () => {
       lastVoteRowSaved = null;
       await renderOptions();
       await loadResults();
     };
-
-    // initial load
-    loadContexts();
-    async function deleteVote(row) {
-      return await apiPost({
-        action: "deleteVote",
-        row
-      });
-    }
-
     // ---- Load results ----
     async function loadResults() {
       const contextId = ctxSelect.value;
@@ -706,13 +631,6 @@
     }
 
     document.getElementById("refreshResults").onclick = loadResults;
-
-    // when select changes -> renderOptions + refresh results
-    ctxSelect.onchange = async () => {
-      await renderOptions(); // now renderOptions will use selected value
-      await loadResults();
-    };
-
     // initial
     loadContexts();
   </script>

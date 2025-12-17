@@ -247,6 +247,11 @@
   </div>
 
   <script>
+    //let chart;
+    //let pendingVoteId = null;
+
+    // 🔑 WAJIB ADA DI SINI
+    const optionColorMap = {};
     const OPTION_COLORS = [
     "#2563eb", // blue
     "#16a34a", // green
@@ -369,8 +374,10 @@
 
         options.forEach((opt, idx) => {
           // If option is object support name/desc/img, else string
+          const name = typeof opt === "object" ? opt.name : opt;
           const color = getColorByIndex(idx);
-          let name = opt;
+          optionColorMap[name] = color;
+          //let name = opt;
           let img = `https://picsum.photos/seed/${encodeURIComponent(opt)}/200`;
           let desc = "";
           if (typeof opt === "object" && opt !== null) {
@@ -606,6 +613,7 @@
     // ensure lastVoteRowSaved reset on context change or reload to avoid stale values
     ctxSelect.onchange = async () => {
       lastVoteRowSaved = null;
+      Object.keys(optionColorMap).forEach(k => delete optionColorMap[k]);
       await renderOptions();
       await loadResults();
     };
@@ -614,6 +622,9 @@
       const contextId = ctxSelect.value;
       if (!contextId) return;
       showLoading(true, "Loading results...");
+      if (!Object.keys(optionColorMap).length) {
+        await renderOptions();
+      }
       try {
         const json = await apiGet(`action=getResults&contextId=${contextId}`);
         if (!json.success) {
@@ -622,9 +633,18 @@
           return;
         }
 
-        const labels = Object.keys(json.results);
-        const data = Object.values(json.results);
+        //const labels = Object.keys(json.results);
+        //const data = Object.values(json.results);
+        //const backgroundColors = labels.map((_, idx) => getColorByIndex(idx));
+        const labels = [];
+        const data = [];
+        const backgroundColors = [];
 
+        Object.keys(optionColorMap).forEach(option => {
+          labels.push(option);
+          data.push(json.results[option] || 0);
+          backgroundColors.push(optionColorMap[option]);
+        });
         if (chart) chart.destroy();
         chart = new Chart(document.getElementById("resultsChart"), {
           type: "bar",
@@ -633,7 +653,8 @@
             datasets: [{
               label: "Votes",
               data,
-              backgroundColor: "rgba(37,99,235,0.7)"
+              backgroundColor: backgroundColors,
+              borderRadius: 8
             }]
           },
           options: { scales: { y: { beginAtZero: true } }, plugins:{legend:{display:false}} }

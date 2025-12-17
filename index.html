@@ -231,7 +231,7 @@
 
     <!-- VOTER SECTION -->
     <div id="voterSection" class="section">
-      <h2>Cast Your Vote</h2>
+      <h2>Silakan Tentukan Pilihan Anda!</h2>
       <select id="contextSelect"></select>
       <div id="voteOptions"></div>
       <input id="tokenInput" placeholder="Enter your unique token" />
@@ -247,10 +247,22 @@
   </div>
 
   <script>
+    const OPTION_COLORS = [
+    "#2563eb", // blue
+    "#16a34a", // green
+    "#dc2626", // red
+    "#7c3aed", // purple
+    "#ea580c", // orange
+    "#0891b2", // cyan
+    "#ca8a04", // yellow
+    "#be185d"  // pink
+    ];
+
+    function getColorByIndex(index) {
+      return OPTION_COLORS[index % OPTION_COLORS.length];
+    }
     //const API_URL = "https://script.google.com/macros/s/AKfycbx3x9x5CgsZJs2ppyv9ngxKbBpTu6O9ZbEy8LY2Wa7n18B8cj7UzZs-jqYXCoYII7--IA/exec";
-    //const API_URL = "https://script.google.com/macros/s/AKfycbyT9AdhZP_UwgEoMgrbMZwEdgR1uSwWgBjH-_9vcg_lgSEzgRDBK3993ap_fbQhu3e_aQ/exec";
-    //const API_URL = "https://script.google.com/macros/s/AKfycbzidjGo3HjJ_LM4PwZuiCf7TghCRuufXcnoQ-SmyQxmv2UZo7axI57ohoInwKRMQR6rUg/exec";
-    const API_URL = "https://script.google.com/macros/s/AKfycbwQHaRzEhimW9fNWvGQzPNOV7F_32ofNr88v2xOJiaDYkZ3snBuLN46b07ohEaEvFKRyA/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbzkrd9P3DN19fSKfIEWc7vNisqTMDoBT1vYCEdoGbWhseRQGGrdEDqR70O49JeQ7kYEWw/exec";
     const isAdmin = window.location.search.includes("admin=1");
     document.getElementById("adminSection").style.display = isAdmin ? "block" : "none";
 
@@ -357,6 +369,7 @@
 
         options.forEach((opt, idx) => {
           // If option is object support name/desc/img, else string
+          const color = getColorByIndex(idx);
           let name = opt;
           let img = `https://picsum.photos/seed/${encodeURIComponent(opt)}/200`;
           let desc = "";
@@ -371,10 +384,10 @@
           div.className = "vote-card";
 
           div.innerHTML = `
-            <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}">
+            <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}" data-color="${color}>
             <img src="${img}" alt="img" onerror="this.src='https://i.ibb.co/4pQ5Cz5/placeholder.jpg'">
             <div>
-              <div class="vote-option-label">${escapeHtml(name)}</div>
+              <div class="vote-option-label" style="color:${color}">${escapeHtml(name)}</div>
               ${desc ? `<div style="font-size:13px;color:#666;margin-top:4px;">${escapeHtml(desc)}</div>` : ''}
             </div>
           `;
@@ -383,10 +396,13 @@
           div.onclick = () => {
             const el = document.getElementById(`opt_${safeId}`);
             if (el) el.checked = true;
-            document.querySelectorAll(".vote-card").forEach(c => c.classList.remove("selected"));
+            document.querySelectorAll(".vote-card").forEach(c => {
+              c.classList.remove("selected");
+              c.style.borderColor = "#ddd";
+            });
             div.classList.add("selected");
+            div.style.borderColor = color;
           };
-
           voteOptionsDiv.appendChild(div);
         });
 
@@ -451,8 +467,8 @@
     }
 
     // Helper: delete vote row
-    async function deleteVoteRow(voteId) {
-      return await apiPost({ action: "deleteVote", voteId: String(voteId) });
+    async function deleteVoteById(voteId) {
+      return await apiPost({ action: "deleteVote", voteId });
     }
 
     // Helper: save voter info
@@ -515,37 +531,35 @@
     });
 
 // ---- Modal Logic ----
-      // Modal: Cancel -> delete pending vote
-      document.getElementById("voterCancel").addEventListener("click", async () => {
+    // Modal: Cancel -> delete pending vote
+    document.getElementById("voterCancel").addEventListener("click", async () => {
       // If there's a pending vote row, delete it
-      if (pendingVoteId) {
-        showLoading(true, "Cancelling vote...");
-        try {
+      if (!pendingVoteId) {
+        closeVoterModal();
+        return;
+      }
+      showLoading(true, "Cancelling vote...");
+      try {
           const del = await deleteVoteById(pendingVoteId);
-          if (!del || !del.success) {
+          console.log("deleteVote result:", del);
+          console.log("deleteVote result:", del.success);
+          if (!del || del.success !== true) {
             console.warn("deleteVote failed:", del);
-            alert("Gagal menghapus vote. Cek logs.");
-          } else {
-            // success
+            alert("Gagal menghapus vote. Silakan refresh halaman.");
           }
-        } catch (err) {
-          console.error("deleteVote network error:", err);
-          alert("Network error while cancelling vote.");
-        } finally {
-          // clear local state and UI
+          // success
           pendingVoteId = null;
-          showLoading(false);
           closeVoterModal();
           alert("Vote dibatalkan karena identitas tidak diisi.");
-          // optionally reload results
           await loadResults();
-        }
-      } else {
-        // nothing to delete
-        closeVoterModal();
+      } catch (err) {
+          console.error("deleteVote network error:", err);
+          alert("Network error while cancelling vote.");
+      } finally {
+        showLoading(false);
       }
-    });   
-
+    });
+    // Modal: Save -> save voter info
     document.getElementById("voterSave").addEventListener("click", async () => {
       const name = document.getElementById("voterName").value.trim();
       const email = document.getElementById("voterEmail").value.trim();
@@ -563,7 +577,7 @@
           return;
         }
         // success
-        alert("Identitas tersimpan. Terima kasih!");
+        alert("Vote & Identitas tersimpan. Terima kasih!");
         // close modal and clear state
         pendingVoteId = null;
         closeVoterModal();

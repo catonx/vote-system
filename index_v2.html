@@ -6,30 +6,127 @@
   <title>Online Voting System</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    .header {
-      text-align: center;
-      margin-bottom: 20px;
-      padding: 10px 0;
-    }
+.header {
+  width: 100%;
+  margin: 20px auto;
+}
 
-    .afpi-logo {
-      width: 160px;
-      max-width: 60%;
-      margin-bottom: 10px;
-    }
+.afpi-hero {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
 
-    .title-main {
-      font-size: 26px;
-      margin: 5px 0;
-      color: #1d4ed8;
-      font-weight: 700;
-    }
+  /*
+   * Collage background.
+   * Nanti bisa diganti dengan satu gambar collage AFPI
+   * yang kita siapkan khusus.
+   */
+  background:
+    linear-gradient(
+      120deg,
+      rgba(11, 39, 21, 0.82),
+      rgba(24, 97, 58, 0.72),
+      rgba(130, 170, 90, 0.30),
+      rgba(245, 236, 195, 0.18)
+    ),
+    url("https://picsum.photos/seed/afpi-musyawarah-2026/1400/500");
 
-    .subtitle {
-      margin: 0;
-      font-size: 14px;
-      color: #555;
-    }
+  background-size: cover;
+  background-position: center;
+
+  box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+}
+
+.afpi-hero-overlay {
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(8, 30, 18, 0.86),
+      rgba(29, 75, 42, 0.50),
+      rgba(175, 190, 120, 0.18),
+      rgba(255, 255, 255, 0.08)
+    );
+
+  z-index: 1;
+}
+
+.afpi-hero-logo {
+  position: absolute;
+
+  top: 22px;
+  right: 25px;
+
+  width: 135px;
+  max-width: 30%;
+
+  z-index: 2;
+
+  filter:
+    drop-shadow(0 4px 10px rgba(255,255,255,0.32));
+  background: rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.afpi-hero-title {
+  position: absolute;
+
+  left: 35px;
+  bottom: 30px;
+
+  z-index: 2;
+
+  color: #b9c97c;
+
+  text-shadow:
+    0 2px 8px rgba(0,0,0,0.55);
+}
+
+.afpi-hero-main {
+  font-size: clamp(24px, 4vw, 40px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #cddd8a;
+}
+
+.afpi-hero-year {
+  margin-top: 3px;
+
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 600;
+  letter-spacing: 4px;
+  color: #dfeab3;
+}
+
+@media (max-width: 600px) {
+
+  .afpi-hero {
+    height: 210px;
+  }
+
+  .afpi-hero-logo {
+    width: 100px;
+    top: 15px;
+    right: 15px;
+  }
+
+  .afpi-hero-title {
+    left: 20px;
+    bottom: 20px;
+  }
+
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+}
     body {
       font-family: 'Inter', sans-serif;
       background: #f6f8fa;
@@ -106,41 +203,86 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
     .vote-card {
+      position: relative;
+
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      margin-bottom: 10px;
+
+      padding: 16px;
+
+      min-height: 220px;
+
+      border: 2px solid #ddd;
+      border-radius: 14px;
+
       cursor: pointer;
-      transition: 0.2s ease;
+
+      transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+
       background: #fff;
+
+      box-sizing: border-box;
     }
 
     .vote-card:hover {
-      background: #f7f7f7;
-      transform: translateY(-2px);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      transform: translateY(-4px);
+
+      box-shadow:
+        0 6px 18px rgba(0,0,0,0.12);
     }
 
     .vote-card.selected {
-      border-color: #0077ff;
-      background: #e9f3ff;
-      box-shadow: 0 0 10px rgba(0, 119, 255, 0.3);
-      transform: scale(1.03);
+      transform: translateY(-4px) scale(1.02);
+
+      box-shadow:
+        0 0 0 3px rgba(37,99,235,0.12),
+        0 8px 20px rgba(0,0,0,0.15);
+    }
+
+    #voteOptions {
+      display: grid;
+
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(190px, 1fr)
+      );
+
+      gap: 16px;
+
+      margin-top: 15px;
     }
 
     .vote-card img {
-      width: 55px;
-      height: 55px;
-      border-radius: 8px;
+      width: 100%;
+      height: 130px;
+
+      border-radius: 10px;
+
       object-fit: cover;
+
+      display: block;
+
+      margin-bottom: 12px;
+
+      background: #f1f5f9;
     }
 
     .vote-option-label {
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .vote-card .option-description {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      margin-top: 6px;
     }
 
     .vote-radio {
@@ -175,9 +317,27 @@
   </div>
 
   <div class="header">
-    <img src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png" 
-         alt="AFPI Logo" class="afpi-logo" />
-    <h1 class="title-main">Online Voting System</h1>
+    <div class="afpi-hero">
+
+      <div class="afpi-hero-overlay"></div>
+
+      <img
+        src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png"
+        alt="AFPI Logo"
+        class="afpi-hero-logo"
+      />
+
+      <div class="afpi-hero-title">
+        <div class="afpi-hero-main">
+          MUSYAWARAH AFPI IV
+        </div>
+
+        <div class="afpi-hero-year">
+          2026
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <div class="container">
@@ -214,11 +374,29 @@
   </div>
 
   <script>
+    const optionColorMap = {};
+    const OPTION_COLORS = [
+    "#2563eb", // blue
+    "#16a34a", // green
+    "#dc2626", // red
+    "#7c3aed", // purple
+    "#ea580c", // orange
+    "#0891b2", // cyan
+    "#ca8a04", // yellow
+    "#be185d"  // pink
+    ];
+
+    function getColorByIndex(index) {
+      return OPTION_COLORS[index % OPTION_COLORS.length];
+    }
     const API_URL = "https://script.google.com/macros/s/AKfycbx3x9x5CgsZJs2ppyv9ngxKbBpTu6O9ZbEy8LY2Wa7n18B8cj7UzZs-jqYXCoYII7--IA/exec";
     const isAdmin = window.location.search.includes("admin=1");
     document.getElementById("adminSection").style.display = isAdmin ? "block" : "none";
 
+    let lastVoteRowSaved = null;
+    let pendingVoteId = null;
     let chart;
+
     const ctxSelect = document.getElementById("contextSelect");
     const voteOptionsDiv = document.getElementById("voteOptions");
 
@@ -317,14 +495,27 @@
         voteOptionsDiv.innerHTML = "";
 
         options.forEach((opt, idx) => {
-          // If option is object support name/desc/img, else string
-          let name = opt;
-          let img = `https://picsum.photos/seed/${encodeURIComponent(opt)}/200`;
+          let name = "";
+          let img = "";
           let desc = "";
+
           if (typeof opt === "object" && opt !== null) {
-            name = opt.name || opt.title || String(opt);
-            img = opt.img || img;
+            name = opt.name || opt.title || "Option";
             desc = opt.desc || "";
+            if (opt.img) {
+              img = opt.img;
+            }
+          } else {
+            name = String(opt);
+          }
+          const color = getColorByIndex(idx);
+          optionColorMap[name] = color;
+          if (!img) {
+            const imageSeed = encodeURIComponent(
+              `afpi-${name.toLowerCase().replace(/\s+/g, "-")}`
+            );
+
+            img = `https://picsum.photos/seed/${imageSeed}/500/320`;
           }
 
           const safeId = String(name).replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
@@ -334,9 +525,9 @@
           div.innerHTML = `
             <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}">
             <img src="${img}" alt="img" onerror="this.src='https://i.ibb.co/4pQ5Cz5/placeholder.jpg'">
-            <div>
+            <div class="option-content">
               <div class="vote-option-label">${escapeHtml(name)}</div>
-              ${desc ? `<div style="font-size:13px;color:#666;margin-top:4px;">${escapeHtml(desc)}</div>` : ''}
+              ${desc ? `<div class="option-description">${escapeHtml(desc)}</div>` : ''}
             </div>
           `;
 
@@ -344,8 +535,13 @@
           div.onclick = () => {
             const el = document.getElementById(`opt_${safeId}`);
             if (el) el.checked = true;
-            document.querySelectorAll(".vote-card").forEach(c => c.classList.remove("selected"));
+            document.querySelectorAll(".vote-card").forEach(c => {
+              c.classList.remove("selected");
+              c.style.borderColor = "#ddd";
+            });
             div.classList.add("selected");
+            div.style.borderColor = color;
+
           };
 
           voteOptionsDiv.appendChild(div);

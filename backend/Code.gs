@@ -70,6 +70,28 @@ function parseOptions(value) {
   return [];
 }
 
+function getMasterKey() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MasterKeys");
+  if (!sheet || sheet.getLastRow() < 2) return "";
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const keyColumn = headers.findIndex(header => String(header).trim().toLowerCase() === "key");
+  const column = keyColumn === -1 ? 1 : keyColumn + 1;
+  return String(sheet.getRange(2, column).getValue() || "").trim();
+}
+
+function isValidAdminKey(adminKey) {
+  const masterKey = getMasterKey();
+  return Boolean(masterKey && adminKey && String(adminKey).trim() === masterKey);
+}
+
+function requireAdminKey(data) {
+  if (!isValidAdminKey(data && data.adminKey)) {
+    return { success: false, code: "INVALID_ADMIN_KEY", message: "Admin key tidak valid." };
+  }
+  return null;
+}
+
 function getOptionName(option) {
   if (option && typeof option === "object") {
     return String(option.name || option.title || "");
@@ -146,7 +168,14 @@ function handleAction(action, data) {
   const tokensSheet = ss.getSheetByName("Tokens");
 
   switch (action) {
+    case "validateAdminKey":
+      return isValidAdminKey(data && data.adminKey)
+        ? { success: true }
+        : { success: false, code: "INVALID_ADMIN_KEY", message: "Admin key tidak valid." };
+
     case "createContext": {
+      const adminError = requireAdminKey(data);
+      if (adminError) return adminError;
       const { title, options, endsAt, ends_at } = data;
       const endDate = parseContextEndDate(endsAt || ends_at);
       if (!title || !endDate || endDate.getTime() <= Date.now()) {
@@ -190,6 +219,8 @@ function handleAction(action, data) {
     }
 
     case "getTokens": {
+      const adminError = requireAdminKey(data);
+      if (adminError) return adminError;
       const sheet = ss.getSheetByName(SHEET_TOKENS);
       if (!sheet || sheet.getLastRow() < 2) return { success: true, tokens: [] };
       const headerMap = getTokenHeaderMap(sheet);
@@ -208,6 +239,8 @@ function handleAction(action, data) {
     }
 
     case "deleteOption": {
+      const adminError = requireAdminKey(data);
+      if (adminError) return adminError;
       const { contextId, optionName } = data;
       if (!contextId || !optionName) {
         return { success: false, code: "MISSING_OPTION_FIELDS", message: "Context and option are required." };
@@ -386,38 +419,28 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    Logger.log("=== RAW EVENT ===");
-    Logger.log(JSON.stringify(e));
-
     let data = {};
 
     // Pastikan e dan e.postData valid
     if (e && e.postData && e.postData.contents) {
       const contentType = e.postData.type || "";
-      Logger.log("Content-Type: " + contentType);
 
       // Jika dikirim dalam format JSON
       if (contentType.indexOf("application/json") > -1) {
         try {
           data = JSON.parse(e.postData.contents);
-          Logger.log("Parsed JSON body");
         } catch (err) {
-          Logger.log("JSON parse failed: " + err.message);
           data = e.parameter;
         }
       } else if (contentType.indexOf("application x-www-form-urlencoded") !== -1) {
         data = e.parameter;
       } else {
         // Jika dikirim sebagai form-data / urlencoded
-        Logger.log("Non-JSON body detected or Unknown contentType, using e.parameter");
         data = e.parameter;
       }
     } else {
-      Logger.log("No postData found, fallback to e.parameter");
       data = e ? e.parameter : {};
     }
-
-    Logger.log("Final data: " + JSON.stringify(data));
 
     // Pastikan action ada
     const action = data.action || "undefined";

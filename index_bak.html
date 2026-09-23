@@ -943,12 +943,13 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbzkrd9P3DN19fSKfIEWc7vNisqTMDoBT1vYCEdoGbWhseRQGGrdEDqR70O49JeQ7kYEWw/exec";
     const urlParams = new URLSearchParams(window.location.search);
     const isAdmin = urlParams.get("admin") === "1";
+    let adminKey = isAdmin ? (window.prompt("Masukkan Master Key Admin:") || "").trim() : "";
     const isResultPage = isAdmin && urlParams.get("result") === "1";
     const isQrGeneratorPage = isAdmin && urlParams.get("qr_gen") === "1";
 
     document.body.classList.toggle("result-mode", isResultPage);
     document.body.classList.toggle("qr-generator-mode", isQrGeneratorPage);
-    document.getElementById("adminSection").style.display = isAdmin && !isResultPage ? "block" : "none";
+    document.getElementById("adminSection").style.display = "none";
     document.getElementById("voterSection").style.display = isResultPage || isQrGeneratorPage ? "none" : "block";
     document.querySelector(".header").style.display = isResultPage ? "none" : "block";
     document.getElementById("voterModal").style.display = "none";
@@ -993,7 +994,7 @@
       if (!isQrGeneratorPage || !qrCards) return;
       qrCards.innerHTML = `<div class="shimmer"></div>`;
       try {
-        const response = await apiGet("action=getTokens");
+        const response = await apiPost({ action: "getTokens", adminKey });
         const tokens = response.tokens || [];
         if (!tokens.length) {
           qrCards.innerHTML = `<div class="qr-empty">Tidak ada peserta pada sheet Tokens.</div>`;
@@ -1047,6 +1048,13 @@
       });
 
       return res.json();
+    }
+
+    async function validateAdminAccess() {
+      if (!isAdmin) return true;
+      if (!adminKey) return false;
+      const response = await apiPost({ action: "validateAdminKey", adminKey });
+      return response?.success === true;
     }
 
     async function apiGet(params = "") {
@@ -1143,6 +1151,15 @@
     async function loadContexts() {
       showLoading(true, "Loading contexts...");
       try {
+        if (isAdmin) {
+          const authorized = await validateAdminAccess();
+          if (!authorized) {
+            alert("Master Key tidak valid.");
+            window.location.replace(window.location.pathname);
+            return;
+          }
+          document.getElementById("adminSection").style.display = isResultPage ? "none" : "block";
+        }
         const json = await apiGet("action=getContexts");
         contexts = json.contexts || [];
         ctxSelect.innerHTML = "";
@@ -1286,7 +1303,8 @@
                 const response = await apiPost({
                   action: "deleteOption",
                   contextId: ctx.id,
-                  optionName: name
+                  optionName: name,
+                  adminKey
                 });
                 if (!response?.success) {
                   alert(response?.message || "Opsi gagal dihapus.");
@@ -1388,7 +1406,8 @@
             action: "createContext",
             title,
             options: JSON.stringify(options),
-            endsAt: new Date(endsAt).toISOString()
+            endsAt: new Date(endsAt).toISOString(),
+            adminKey
           });
           alert(res.message || "Context created!");
           await loadContexts();

@@ -7,29 +7,105 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
-    .header {
+    .header,
+    .container {
       width: 100%;
+      max-width: 700px;
+      box-sizing: border-box;
       margin: 20px auto;
     }
 
     .afpi-hero {
       position: relative;
       width: 100%;
-      height: 260px;
+      aspect-ratio: 4 / 1;
       border-radius: 14px;
       overflow: hidden;
       background:
-        linear-gradient(
-          120deg,
-          rgba(11, 39, 21, 0.82),
-          rgba(24, 97, 58, 0.72),
-          rgba(130, 170, 90, 0.30),
-          rgba(245, 236, 195, 0.18)
-        ),
-        url("https://picsum.photos/seed/afpi-musyawarah-2026/1400/500");
-      background-size: cover;
-      background-position: center;
+        linear-gradient(125deg, #092b21 0%, #165c48 52%, #82a85d 100%);
       box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+
+    .afpi-hero-image {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      object-fit: cover;
+      object-position: center;
+      z-index: 0;
+    }
+
+    .afpi-hero-fallback-image,
+    .afpi-hero-overlay,
+    .afpi-hero-logo,
+    .afpi-hero-logo-fallback,
+    .afpi-hero-title {
+      display: none;
+    }
+
+    .afpi-hero-fallback-image,
+    .afpi-hero-overlay {
+      border-radius: inherit;
+    }
+
+    .afpi-hero.image-fallback .afpi-hero-fallback-image {
+      display: block;
+    }
+    .attendance-status.is-pending {
+      color: #b42318;
+    }
+
+    .afpi-hero.image-fallback .afpi-hero-overlay,
+    .afpi-hero.image-fallback .afpi-hero-title {
+      display: block;
+    }
+
+    .afpi-hero.image-fallback .afpi-hero-logo {
+      display: block;
+    }
+
+    .afpi-hero-silhouette {
+      position: absolute;
+      right: 10%;
+      bottom: -2%;
+      display: none;
+      width: 38%;
+      height: 82%;
+      opacity: 0.24;
+      transform: skewX(-8deg);
+      z-index: 0;
+    }
+
+    .afpi-hero-silhouette::before,
+    .afpi-hero-silhouette::after {
+      position: absolute;
+      bottom: 0;
+      width: 34%;
+      height: 75%;
+      border-radius: 48% 48% 8% 8%;
+      background: #d8e6c0;
+      content: "";
+    }
+
+    .afpi-hero-silhouette::before {
+      left: 8%;
+      box-shadow: 0 -58px 0 -10px #d8e6c0;
+    }
+
+    .afpi-hero-silhouette::after {
+      right: 8%;
+      height: 88%;
+      box-shadow: 0 -66px 0 -10px #d8e6c0;
+    }
+
+    .afpi-hero.image-fallback .afpi-hero-image {
+      display: none;
+    }
+
+    .afpi-hero.image-fallback .afpi-hero-silhouette {
+      display: block;
     }
 
     .afpi-hero-overlay {
@@ -38,10 +114,10 @@
       background:
         linear-gradient(
           135deg,
-          rgba(8, 30, 18, 0.86),
-          rgba(29, 75, 42, 0.50),
-          rgba(175, 190, 120, 0.18),
-          rgba(255, 255, 255, 0.08)
+          rgba(8, 30, 18, 0.42),
+          rgba(29, 75, 42, 0.16),
+          rgba(175, 190, 120, 0.04),
+          rgba(255, 255, 255, 0.02)
         );
       z-index: 1;
     }
@@ -57,6 +133,23 @@
       background: rgba(255,255,255,0.06);
       border-radius: 12px;
       padding: 6px;
+    }
+
+    .afpi-hero-logo-fallback {
+      position: absolute;
+      top: 22px;
+      right: 25px;
+      display: none;
+      z-index: 2;
+      color: #f2f7df;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+    }
+
+    .afpi-hero.logo-fallback .afpi-hero-logo-fallback {
+      display: block;
     }
 
     .afpi-hero-title {
@@ -85,16 +178,33 @@
 
     @media (max-width: 600px) {
       .afpi-hero {
-        height: 210px;
+        aspect-ratio: 4 / 1;
+        border-radius: 12px;
       }
       .afpi-hero-logo {
         width: 100px;
         top: 15px;
         right: 15px;
+        max-width: 24%;
+      }
+      .afpi-hero-logo-fallback {
+        top: 15px;
+        right: 15px;
+        font-size: 20px;
       }
       .afpi-hero-title {
         left: 20px;
         bottom: 20px;
+        max-width: calc(100% - 40px);
+      }
+      .afpi-hero-main {
+        font-size: clamp(15px, 5vw, 24px);
+        line-height: 1.08;
+        letter-spacing: 0.5px;
+      }
+      .afpi-hero-year {
+        font-size: clamp(14px, 4vw, 20px);
+        letter-spacing: 2px;
       }
     }
 
@@ -102,6 +212,21 @@
       margin: 0;
       font-size: 14px;
       color: #555;
+    }
+    #voterPageTitle {
+      margin: 0 0 6px;
+      color: #173b2a;
+      font-size: clamp(24px, 5vw, 34px);
+      line-height: 1.2;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+    .vote-instruction {
+      margin: 0 0 16px;
+      color: #555;
+      font-size: 16px;
+      font-weight: 500;
+      text-align: center;
     }
     body {
       font-family: 'Inter', sans-serif;
@@ -115,8 +240,6 @@
       color: #333;
     }
     .container {
-      max-width: 700px;
-      margin: 20px auto;
       background: rgba(255, 255, 255, 0.72);
       border-radius: 12px;
       box-shadow: 0 3px 10px rgba(0,0,0,0.1);
@@ -366,6 +489,33 @@
       align-items: center;
     }
     .option-input input { flex: 1; }
+    .option-input .option-image-input {
+      display: none;
+    }
+    .option-input .upload-option-image {
+      display: inline-flex;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      align-items: center;
+      justify-content: center;
+      margin: 5px 0;
+      padding: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #173b2a;
+      cursor: pointer;
+    }
+    .option-input .upload-option-image:hover,
+    .option-input .upload-option-image.has-image {
+      background: #dcfce7;
+      border-color: #86efac;
+    }
+    .option-input .upload-option-image svg {
+      width: 20px;
+      height: 20px;
+    }
     .form-label {
       display: block;
       margin-top: 12px;
@@ -563,6 +713,82 @@
       margin: 0;
     }
 
+    .attendance-panel {
+      display: none;
+      margin-top: 22px;
+      padding: 22px;
+      border: 1px solid rgba(23, 59, 42, 0.14);
+      border-radius: 14px;
+      background: rgba(239, 248, 241, 0.86);
+      text-align: center;
+    }
+
+    .attendance-panel .panel-heading {
+      align-items: center;
+      justify-content: center;
+      margin: 0 0 18px;
+      color: #173b2a;
+      font-size: 19px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .attendance-panel.is-visible {
+      display: block;
+    }
+
+    .attendance-name {
+      display: inline-block;
+      margin: 0 auto 16px;
+      padding: 8px 18px;
+      border: 1px solid rgba(23, 107, 69, 0.2);
+      border-radius: 10px;
+      background: #f0fdf4;
+      color: #173b2a;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .attendance-help {
+      margin: 12px 0 20px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(180, 35, 24, 0.18);
+      color: #176b45;
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .attendance-help.is-ended {
+      color: #b42318;
+      font-weight: 700;
+    }
+
+    .attendance-status {
+      display: none;
+      margin: 0 0 4px;
+      color: #176b45;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .attendance-panel .attendance-status.is-visible {
+      display: block;
+    }
+
+    .attendance-panel button {
+      margin: 0;
+      background: #176b45;
+    }
+
+    .attendance-panel.is-disabled {
+      opacity: 0.62;
+      filter: grayscale(0.35);
+    }
+
+    .attendance-panel.is-disabled button {
+      cursor: not-allowed;
+    }
+
     .token-panel.is-disabled {
       opacity: 0.58;
       filter: grayscale(0.35);
@@ -575,8 +801,9 @@
 
     .session-status {
       margin: 10px 0 0;
-      color: #64748b;
+      color: #176b45;
       font-size: 13px;
+      font-weight: 400;
     }
 
     .session-status.is-ended,
@@ -810,13 +1037,28 @@
 
   <div class="header">
     <div class="afpi-hero">
+      <img
+        class="afpi-hero-image"
+        src="https://afpi.or.id/fm/voting_system_munas_afpi_iv.jpeg"
+        alt="Munas AFPI IV"
+        onerror="const hero=this.closest('.afpi-hero'); hero.classList.add('image-fallback'); const fallback=hero.querySelector('.afpi-hero-fallback-image'); fallback.src=fallback.dataset.src; this.remove();"
+      />
+      <img
+        class="afpi-hero-fallback-image"
+        data-src="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1600&q=85"
+        alt="Modern financial collaboration"
+        onerror="this.remove();"
+      />
+      <div class="afpi-hero-silhouette" aria-hidden="true"></div>
       <div class="afpi-hero-overlay"></div>
 
       <img
         src="https://afpi.or.id/assets/images/AFPI%20Final%20Logo%20with%20Abbreviation.png"
         alt="AFPI Logo"
         class="afpi-hero-logo"
+        onerror="this.closest('.afpi-hero').classList.add('logo-fallback'); this.remove();"
       />
+      <div class="afpi-hero-logo-fallback" aria-hidden="true">AFPI</div>
 
       <div class="afpi-hero-title">
         <div class="afpi-hero-main">MUSYAWARAH AFPI IV</div>
@@ -843,15 +1085,25 @@
     <div id="adminSection" class="section" style="display:none;">
       <h2>Create Voting Context</h2>
       <form id="createContextForm">
-        <input id="contextTitle" placeholder="Enter vote title..." required />
+        <input id="contextTitle" placeholder="Enter Vote / Attendance Session Title" required />
         <label class="form-label" for="contextEndsAt">Waktu sesi berakhir</label>
         <input id="contextEndsAt" type="datetime-local" required />
         <div id="optionsContainer">
           <div class="option-input">
-            <input placeholder="Option 1" required />
+            <input class="option-name-input" placeholder="Option 1" required />
+            <label class="upload-option-image" title="Upload image opsi" aria-label="Upload image opsi">
+              <input class="option-image-input" type="file" accept="image/*" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14" />
+              </svg>
+            </label>
             <button type="button" class="remove-option" aria-label="Hapus opsi" disabled>X</button>
           </div>
         </div>
+        <label class="form-label">
+          <input id="contextAttendance" type="checkbox" style="width:auto; margin-right:8px;" />
+          Absen
+        </label>
         <button type="button" id="addOption">+ Add Option</button>
         <button type="submit">Create Context</button>
       </form>
@@ -871,7 +1123,8 @@
 
     <!-- VOTER SECTION -->
     <div id="voterSection" class="section">
-      <h2>Silakan Tentukan Pilihan Anda!</h2>
+      <h2 id="voterPageTitle"></h2>
+      <p id="voteInstruction" class="vote-instruction">Silahkan Tentukan Pilihan Anda!</p>
       <select id="contextSelect"></select>
       <div class="voting-options-panel">
         <div class="panel-heading">
@@ -886,6 +1139,13 @@
         <p id="tokenQrStatus" class="token-qr-status">Token QR terdeteksi dan siap digunakan.</p>
         <p class="token-help">Masukkan token unik Anda untuk mengirimkan pilihan.</p>
         <button id="submitVote">Submit Vote</button>
+      </div>
+      <div id="attendancePanel" class="attendance-panel" aria-live="polite">
+        <div class="panel-heading">Konfirmasi Kehadiran</div>
+        <div id="attendanceName" class="attendance-name">Peserta</div>
+        <div id="attendanceStatus" class="attendance-status">Kehadiran Anda telah tercatat</div>
+        <p id="attendanceHelp" class="attendance-help">Tekan Hadir untuk mencatat kehadiran Anda.</p>
+        <button id="submitAttendance" type="button">Hadir</button>
       </div>
     </div>
 
@@ -967,6 +1227,13 @@
     const tokenFromQr = urlParams.get("token");
     const contextFromQr = urlParams.get("contextId");
     const submitVoteButton = document.getElementById("submitVote");
+    const attendancePanel = document.getElementById("attendancePanel");
+    const attendanceName = document.getElementById("attendanceName");
+    const attendanceStatus = document.getElementById("attendanceStatus");
+    const attendanceHelp = document.getElementById("attendanceHelp");
+    const submitAttendanceButton = document.getElementById("submitAttendance");
+    const resultsSection = document.getElementById("resultsSection");
+    const voterPageTitle = document.getElementById("voterPageTitle");
     const qrCards = document.getElementById("qrCards");
     const resultMedia = document.getElementById("resultMedia");
     const chartCanvas = document.getElementById(
@@ -1105,26 +1372,119 @@
       return Boolean(endDate && endDate.getTime() > Date.now());
     }
 
-    function formatContextEnd(context) {
+    function getContextLatestDate(context) {
+      const createdAt = context?.created_at || context?.createdAt;
+      const createdDate = createdAt ? new Date(createdAt) : null;
+      if (createdDate && !Number.isNaN(createdDate.getTime())) return createdDate;
+      return getContextEndDate(context) || new Date(0);
+    }
+
+    function getVoterContexts(allContexts) {
+      const openContexts = allContexts
+        .filter(context => isContextOpen(context))
+        .sort((left, right) => getContextLatestDate(right) - getContextLatestDate(left));
+      if (openContexts.length) return openContexts;
+
+      const latestContext = [...allContexts]
+        .sort((left, right) => getContextLatestDate(right) - getContextLatestDate(left))[0];
+      return latestContext ? [latestContext] : [];
+    }
+
+    function isAttendanceContext(context) {
+      return Boolean(context && context.attendance === true);
+    }
+
+    function formatSessionEnd(context, isQuorum = false) {
       const endDate = getContextEndDate(context);
-      if (!endDate) return "Waktu berakhir belum diatur.";
-      return `Sesi berakhir pada ${endDate.toLocaleString("id-ID", {
-        dateStyle: "medium",
-        timeStyle: "short"
+      if (!endDate) return isQuorum
+        ? "Sesi perhitungan Quorum belum diatur."
+        : "Waktu sesi belum diatur.";
+      const prefix = isQuorum ? "Sesi perhitungan Quorum" : "Sesi";
+      const state = isContextOpen(context) ? "akan berakhir pada" : "telah berakhir pada";
+      return `${prefix} ${state} ${endDate.toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
       })}`;
+    }
+
+    function setSessionStatus(element, context, isQuorum = false) {
+      const isEnded = Boolean(getContextEndDate(context) && !isContextOpen(context));
+      element.textContent = formatSessionEnd(context, isQuorum);
+      element.classList.toggle("is-ended", isEnded);
+      element.classList.toggle("is-unconfigured", !getContextEndDate(context));
+    }
+
+    function setAttendanceDisabled(disabled) {
+      attendancePanel.classList.toggle("is-disabled", disabled);
+      submitAttendanceButton.disabled = disabled;
+    }
+
+    async function updateAttendanceMode(context) {
+      const attendanceMode = isAttendanceContext(context);
+      attendancePanel.classList.toggle("is-visible", attendanceMode);
+      votingOptionsPanel.style.display = attendanceMode ? "none" : "block";
+      tokenPanel.style.display = attendanceMode ? "none" : "block";
+      resultsSection.style.display = attendanceMode ? "none" : "block";
+      document.getElementById("voteInstruction").style.display = attendanceMode ? "none" : "block";
+      if (!attendanceMode) {
+        voterPageTitle.textContent = context?.title || "Voting";
+        attendanceStatus.classList.remove("is-visible", "is-pending");
+        return;
+      }
+
+      voterPageTitle.textContent = context?.title || "Konfirmasi Kehadiran";
+      attendanceStatus.classList.remove("is-visible", "is-pending");
+      setSessionStatus(attendanceHelp, context, true);
+
+      attendanceName.textContent = tokenFromQr ? "Memuat peserta..." : "Scan QR peserta";
+      setAttendanceDisabled(!isContextOpen(context) || !tokenFromQr);
+      if (!tokenFromQr) {
+        attendanceHelp.textContent = `Absensi hanya dapat dilakukan melalui QR peserta. ${formatSessionEnd(context, true)}`;
+        return;
+      }
+
+      try {
+        const [participant, attendanceStatusResponse] = await Promise.all([
+          apiPost({ action: "getParticipant", token: tokenFromQr.trim() }),
+          apiPost({
+            action: "getAttendanceStatus",
+            contextId: context.id,
+            token: tokenFromQr.trim()
+          })
+        ]);
+        if (!participant?.success) throw new Error(participant?.message || "Token tidak valid");
+        attendanceName.textContent = participant.identifier || "Peserta";
+        setSessionStatus(attendanceHelp, context, true);
+
+        if (attendanceStatusResponse?.success && attendanceStatusResponse.recorded) {
+          attendanceStatus.textContent = "Kehadiran Anda telah tercatat";
+          attendanceStatus.classList.add("is-visible");
+          setSessionStatus(attendanceHelp, context, true);
+          setAttendanceDisabled(true);
+        } else if (!isContextOpen(context)) {
+          attendanceStatus.textContent = "Kehadiran Anda belum tercatat";
+          attendanceStatus.classList.add("is-visible", "is-pending");
+          setSessionStatus(attendanceHelp, context, true);
+          setAttendanceDisabled(true);
+        }
+      } catch (error) {
+        attendanceName.textContent = "Token tidak valid";
+        attendanceHelp.textContent = "QR peserta tidak dapat diverifikasi.";
+        setAttendanceDisabled(true);
+      }
     }
 
     function updateVotingAvailability(context) {
       const isOpen = isContextOpen(context);
       const hasEndDate = Boolean(getContextEndDate(context));
       const isEnded = hasEndDate && !isOpen;
-      const statusText = formatContextEnd(context);
 
       votingOptionsTitle.textContent = isEnded ? "Voting sudah ditutup." : "Pilihan Voting";
       votingOptionsPanel.querySelector(".panel-heading").classList.toggle("is-ended", isEnded);
-      sessionStatus.textContent = statusText;
-      sessionStatus.classList.toggle("is-ended", isEnded);
-      sessionStatus.classList.toggle("is-unconfigured", !hasEndDate);
+      setSessionStatus(sessionStatus, context);
       tokenPanel.classList.toggle("is-disabled", !isOpen);
       tokenInput.disabled = !isOpen;
       submitVoteButton.disabled = !isOpen;
@@ -1162,17 +1522,20 @@
         }
         const json = await apiGet("action=getContexts");
         contexts = json.contexts || [];
+        const availableContexts = isAdmin ? contexts : getVoterContexts(contexts);
         ctxSelect.innerHTML = "";
         resultContextSelect.innerHTML = "";
-        if (!json.success || !json.contexts?.length) {
+        ctxSelect.style.display = availableContexts.length > 1 ? "block" : "none";
+        if (!json.success || !availableContexts.length) {
           ctxSelect.innerHTML = `<option value="">No context available</option>`;
           resultContextSelect.innerHTML = `<option value="">No context available</option>`;
+          ctxSelect.style.display = "none";
           voteOptionsDiv.innerHTML = `<div class="shimmer"></div>`;
           updateVotingAvailability(null);
           showLoading(false);
           return;
         }
-        json.contexts.forEach(c => {
+        availableContexts.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c.id;
           opt.textContent = c.title;
@@ -1183,7 +1546,11 @@
         });
         // select first by default
         if (ctxSelect.options.length > 0) ctxSelect.selectedIndex = 0;
-        if (contextFromQr && contexts.some(context => String(context.id) === String(contextFromQr))) {
+        if (tokenFromQr) {
+          const attendanceContext = contexts.find(context => context.attendance === true && isContextOpen(context));
+          if (attendanceContext) ctxSelect.value = attendanceContext.id;
+        }
+        if (contextFromQr && availableContexts.some(context => String(context.id) === String(contextFromQr))) {
           ctxSelect.value = contextFromQr;
         }
         resultContextSelect.value = ctxSelect.value;
@@ -1195,6 +1562,7 @@
         const activeContext = contexts.find(context => context.id === ctxSelect.value);
         await renderOptions(activeContext);
         updateVotingAvailability(activeContext);
+        await updateAttendanceMode(activeContext);
         await loadResults(ctxSelect.value, activeContext);
       } catch (err) {
         console.error("loadContexts error", err);
@@ -1261,11 +1629,7 @@
           optionColorMap[name] = color;
 
           if (!img) {
-            const imageSeed = encodeURIComponent(
-              `afpi-${name.toLowerCase().replace(/\s+/g, "-")}`
-            );
-
-            img = `https://picsum.photos/seed/${imageSeed}/500/320`;
+            img = createGenericOptionImage(name, color, idx);
           }
 
           const safeId = String(name).replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
@@ -1369,29 +1733,142 @@
       `)}`;
     }
 
+    function createGenericOptionImage(name, color, index = 0) {
+      const hash = String(name).split("").reduce((total, character) => total + character.charCodeAt(0), 0);
+      const variant = (hash + index) % 5;
+      const graphics = [
+        `<rect x="172" y="72" width="156" height="156" rx="28" fill="${color}" opacity="0.88"/>
+         <rect x="207" y="107" width="86" height="86" rx="14" fill="#ffffff" opacity="0.9"/>
+         <path d="M145 105h27m156 0h27M145 160h27m156 0h27M145 215h27m156 0h27M205 45v27m55-27v27m55-27v27M205 228v27m55-27v27m55-27v27" stroke="${color}" stroke-width="12" stroke-linecap="round"/>`,
+        `<g fill="${color}" opacity="0.9"><circle cx="250" cy="78" r="28"/><circle cx="145" cy="235" r="28"/><circle cx="355" cy="235" r="28"/></g>
+         <path d="M250 106v55M227 178l-59 38M273 178l59 38" stroke="${color}" stroke-width="14" stroke-linecap="round"/>
+         <circle cx="250" cy="161" r="30" fill="#ffffff" stroke="${color}" stroke-width="12"/>`,
+        `<rect x="115" y="65" width="270" height="190" rx="22" fill="#0f2f42" opacity="0.94"/>
+         <path d="m170 130 38 30-38 30M245 190h82" stroke="${color}" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>`,
+        `<path d="M250 48 382 102v82c0 70-58 111-132 132-74-21-132-62-132-132v-82z" fill="${color}" opacity="0.9"/>
+         <path d="m194 164 38 38 78-82" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>`,
+        `<polygon points="250,42 410,134 410,226 250,318 90,226 90,134" fill="${color}" opacity="0.9"/>
+         <polygon points="250,88 365,154 365,206 250,272 135,206 135,154" fill="none" stroke="#ffffff" stroke-width="14" opacity="0.9"/>
+         <circle cx="250" cy="180" r="25" fill="#ffffff"/>`
+      ];
+      const graphic = graphics[variant];
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="500" height="320" viewBox="0 0 500 320">
+          <defs>
+            <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ecfeff"/>
+              <stop offset="1" stop-color="#dbeafe"/>
+            </linearGradient>
+          </defs>
+          <rect width="500" height="320" fill="url(#bg)"/>
+          ${graphic}
+          <path d="M28 28h92M28 42h58M380 278h92M414 292h58" stroke="${color}" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
+        </svg>
+      `)}`;
+    }
+
+    function resizeOptionImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const image = new Image();
+          image.onload = () => {
+            const maxWidth = 480;
+            const scale = Math.min(1, maxWidth / image.width);
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.65));
+          };
+          image.onerror = reject;
+          image.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function bindOptionImageInput(row) {
+      const fileInput = row.querySelector(".option-image-input");
+      const uploadLabel = row.querySelector(".upload-option-image");
+      if (!fileInput || !uploadLabel) return;
+      fileInput.onchange = () => {
+        uploadLabel.classList.toggle("has-image", Boolean(fileInput.files[0]));
+        uploadLabel.title = fileInput.files[0]
+          ? `Image: ${fileInput.files[0].name}`
+          : "Upload image opsi";
+      };
+    }
+
+    bindOptionImageInput(document.querySelector("#optionsContainer .option-input"));
+
     // ---- Create context (Admin only) ----
     if (isAdmin) {
+      const contextAttendanceCheckbox = document.getElementById("contextAttendance");
+      const optionsContainer = document.getElementById("optionsContainer");
+      const addOptionButton = document.getElementById("addOption");
+
+      const updateOptionRequirements = () => {
+        const isAttendance = contextAttendanceCheckbox.checked;
+        optionsContainer.querySelectorAll(".option-name-input").forEach(input => {
+          input.required = !isAttendance;
+          input.disabled = isAttendance;
+        });
+      };
+
+      contextAttendanceCheckbox.onchange = () => {
+        const isAttendance = contextAttendanceCheckbox.checked;
+        optionsContainer.style.display = isAttendance ? "none" : "block";
+        addOptionButton.style.display = isAttendance ? "none" : "block";
+        updateOptionRequirements();
+      };
+
+      updateOptionRequirements();
+
       document.getElementById("addOption").onclick = () => {
         const div = document.createElement("div");
         div.classList.add("option-input");
         div.innerHTML = `
-          <input placeholder="New Option" required />
+          <input class="option-name-input" placeholder="New Option" required />
+          <label class="upload-option-image" title="Upload image opsi" aria-label="Upload image opsi">
+            <input class="option-image-input" type="file" accept="image/*" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14" />
+            </svg>
+          </label>
           <button type="button" class="remove-option" aria-label="Hapus opsi">X</button>
         `;
+        bindOptionImageInput(div);
         div.querySelector(".remove-option").onclick = () => {
           const optionRows = document.querySelectorAll("#optionsContainer .option-input");
           if (optionRows.length <= 1) return;
           div.remove();
         };
         document.getElementById("optionsContainer").appendChild(div);
+        updateOptionRequirements();
       };
 
       document.getElementById("createContextForm").onsubmit = async (e) => {
         e.preventDefault();
         const title = document.getElementById("contextTitle").value.trim();
         const endsAt = document.getElementById("contextEndsAt").value;
-        const options = Array.from(document.querySelectorAll("#optionsContainer input"))
-          .map(i => i.value.trim()).filter(Boolean);
+        const isAttendance = contextAttendanceCheckbox.checked;
+        const optionRows = Array.from(document.querySelectorAll("#optionsContainer .option-input"));
+        const options = [];
+        if (isAttendance) {
+          options.push({ name: "Hadir", img: "" });
+        } else {
+          for (const row of optionRows) {
+            const name = row.querySelector(".option-name-input").value.trim();
+            const file = row.querySelector(".option-image-input").files[0];
+            if (!name) continue;
+            options.push({
+              name,
+              img: file ? await resizeOptionImage(file) : ""
+            });
+          }
+        }
         if (!endsAt || new Date(endsAt).getTime() <= Date.now()) {
           alert("Waktu berakhir harus berada di masa depan.");
           return;
@@ -1407,6 +1884,7 @@
             title,
             options: JSON.stringify(options),
             endsAt: new Date(endsAt).toISOString(),
+            attendance: document.getElementById("contextAttendance").checked,
             adminKey
           });
           alert(res.message || "Context created!");
@@ -1520,6 +1998,42 @@
       openVoterModal();
     });
 
+    submitAttendanceButton.addEventListener("click", async () => {
+      const contextId = ctxSelect.value;
+      const activeContext = contexts.find(context => String(context.id) === String(contextId));
+      const token = tokenFromQr ? tokenFromQr.trim() : "";
+      if (!token || !isAttendanceContext(activeContext) || !isContextOpen(activeContext)) {
+        alert("QR token atau sesi absensi tidak valid.");
+        return;
+      }
+
+      submitAttendanceButton.disabled = true;
+      showLoading(true, "Menyimpan kehadiran...");
+      try {
+        const response = await apiPost({
+          action: "submitAttendance",
+          contextId,
+          token,
+          fingerprint: navigator.userAgent || ""
+        });
+        if (!response?.success) {
+          alert(response?.message || "Kehadiran gagal disimpan.");
+          submitAttendanceButton.disabled = false;
+          return;
+        }
+        attendanceStatus.classList.add("is-visible");
+        setSessionStatus(attendanceHelp, activeContext, true);
+        setAttendanceDisabled(true);
+        alert("Kehadiran Anda telah tercatat. Terima kasih!");
+      } catch (error) {
+        console.error("submit attendance error:", error);
+        alert("Gagal menyimpan kehadiran.");
+        submitAttendanceButton.disabled = false;
+      } finally {
+        showLoading(false);
+      }
+    });
+
 // ---- Modal Logic ----
     // Modal: Cancel -> delete pending vote
     document.getElementById("voterCancel").addEventListener("click", async () => {
@@ -1599,6 +2113,7 @@
       Object.keys(optionColorMap).forEach(k => delete optionColorMap[k]);
       resultContextSelect.value = ctxSelect.value;
       await renderOptions();
+      await updateAttendanceMode(contexts.find(context => String(context.id) === String(ctxSelect.value)));
       await loadResults();
     };
 
@@ -1609,6 +2124,7 @@
       Object.keys(optionColorMap).forEach(k => delete optionColorMap[k]);
       const activeContext = contexts.find(context => context.id === selectedContextId);
       await renderOptions(activeContext);
+      await updateAttendanceMode(activeContext);
       await loadResults(selectedContextId, activeContext);
     };
 
@@ -1729,12 +2245,9 @@
         const name = typeof option === "object" && option !== null
           ? option.name || option.title || "Option"
           : String(option);
-        const imageSeed = encodeURIComponent(
-          `afpi-${name.toLowerCase().replace(/\s+/g, "-")}`
-        );
         const image = typeof option === "object" && option !== null && option.img
           ? option.img
-          : `https://picsum.photos/seed/${imageSeed}/500/700`;
+          : createGenericOptionImage(name, optionColorMap[name] || "#2563eb");
         const count = results[name] || 0;
 
         return `

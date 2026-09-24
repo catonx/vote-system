@@ -99,6 +99,31 @@ function getOptionName(option) {
   return String(option || "");
 }
 
+function isAttendanceContext(context) {
+  return Boolean(context && (
+    context.headerMap.attendance !== undefined &&
+    (context.row[context.headerMap.attendance] === true ||
+      String(context.row[context.headerMap.attendance] || "").trim().toLowerCase() === "true")
+  ));
+}
+
+function validateOpenSession(contextSheet, contextId) {
+  const context = getContextById(contextSheet, contextId);
+  if (!context) {
+    return { success: false, code: "CONTEXT_NOT_FOUND", message: "Voting context not found." };
+  }
+
+  const endsAtIndex = context.headerMap.ends_at;
+  const endsAt = endsAtIndex === undefined ? null : parseContextEndDate(context.row[endsAtIndex]);
+  if (!endsAt) {
+    return { success: false, code: "SESSION_NOT_CONFIGURED", message: "Session end time is not configured." };
+  }
+  if (endsAt.getTime() <= Date.now()) {
+    return { success: false, code: "SESSION_ENDED", message: "Session has ended." };
+  }
+  return { success: true, context, endsAt };
+}
+
 function validateOpenContext(contextSheet, contextId, choice) {
   const context = getContextById(contextSheet, contextId);
   if (!context) {
@@ -176,19 +201,23 @@ function handleAction(action, data) {
     case "createContext": {
       const adminError = requireAdminKey(data);
       if (adminError) return adminError;
-      const { title, options, endsAt, ends_at } = data;
+      const { title, options, endsAt, ends_at, attendance } = data;
       const endDate = parseContextEndDate(endsAt || ends_at);
       if (!title || !endDate || endDate.getTime() <= Date.now()) {
         return { success: false, code: "INVALID_END_TIME", message: "A future ends_at value is required." };
       }
+      const isAttendance = String(attendance).trim().toLowerCase() === "true";
       let sheet = ss.getSheetByName(SHEET_CONTEXTS);
       if (!sheet) {
         sheet = ss.insertSheet(SHEET_CONTEXTS);
-        sheet.appendRow(["context_id", "title", "options", "created_at", "ends_at"]);
+        sheet.appendRow(["context_id", "title", "options", "created_at", "ends_at", "attendance"]);
       } else {
         const headerMap = getContextHeaderMap(sheet);
         if (headerMap.ends_at === undefined) {
           return { success: false, code: "ENDS_AT_COLUMN_MISSING", message: "Add an ends_at column to the Contexts sheet first." };
+        }
+        if (isAttendance && headerMap.attendance === undefined) {
+          return { success: false, code: "ATTENDANCE_COLUMN_MISSING", message: "Add an attendance column to the Contexts sheet first." };
         }
       }
       const contextId = Utilities.getUuid();
@@ -199,6 +228,7 @@ function handleAction(action, data) {
       row[headerMap.options] = typeof options === "string" ? options : JSON.stringify(options || []);
       row[headerMap.created_at] = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "yyyy-MM-dd HH:mm:ss");
       row[headerMap.ends_at] = endDate;
+      if (headerMap.attendance !== undefined) row[headerMap.attendance] = isAttendance;
       sheet.appendRow(row);
       return { success: true, contextId };
     }
@@ -213,9 +243,47 @@ function handleAction(action, data) {
         title: r[headerMap.title],
         options: parseOptions(r[headerMap.options]),
         created_at: r[headerMap.created_at],
-        ends_at: headerMap.ends_at === undefined ? "" : r[headerMap.ends_at]
+        ends_at: headerMap.ends_at === undefined ? "" : r[headerMap.ends_at],
+        attendance: headerMap.attendance !== undefined && (
+          r[headerMap.attendance] === true ||
+          String(r[headerMap.attendance] || "").trim().toLowerCase() === "true"
+        )
       }));
       return { success: true, contexts };
+    }
+
+    case "getParticipant": {
+      const token = String(data && data.token || "").trim();
+      if (!token || !isValidToken(token)) {
+        return { success: false, code: "INVALID_TOKEN", message: "Invalid or unauthorized token." };
+      }
+      const sheet = ss.getSheetByName(SHEET_TOKENS);
+      const headerMap = getTokenHeaderMap(sheet);
+      const tokenIndex = headerMap.token === undefined ? 0 : headerMap.token;
+      const identifierIndex = headerMap.identifier === undefined ? 1 : headerMap.identifier;
+      const rows = sheet.getDataRange().getValues().slice(1);
+      const row = rows.find(item => String(item[tokenIndex] || "").trim() === token);
+      return row
+        ? { success: true, identifier: String(row[identifierIndex] || "").trim() }
+        : { success: false, code: "INVALID_TOKEN", message: "Invalid or unauthorized token." };
+    }
+
+    case "getAttendanceStatus": {
+      const contextId = String(data && data.contextId || "").trim();
+      const token = String(data && data.token || "").trim();
+      if (!contextId || !token || !isValidToken(token)) {
+        return { success: false, code: "INVALID_TOKEN", message: "Invalid or unauthorized token." };
+      }
+
+      const sheet = ss.getSheetByName(SHEET_VOTES);
+      if (!sheet || sheet.getLastRow() < 2) return { success: true, recorded: false };
+      const rows = sheet.getDataRange().getValues().slice(1);
+      const attendance = rows.find(row => (
+        String(row[1]) === contextId &&
+        String(row[2]).trim() === token &&
+        String(row[3]).trim().toLowerCase() === "hadir"
+      ));
+      return { success: true, recorded: Boolean(attendance) };
     }
 
     case "getTokens": {
@@ -281,6 +349,9 @@ function handleAction(action, data) {
 
       const contextValidation = validateOpenContext(contextSheet, contextId, choice);
       if (!contextValidation.success) return contextValidation;
+      if (isAttendanceContext(contextValidation.context)) {
+        return { success: false, code: "ATTENDANCE_ONLY", message: "This context is for attendance only." };
+      }
 
       // If Tokens sheet exists, enforce whitelist
       if (ss.getSheetByName("Tokens") && !isValidToken(token)) {
@@ -318,6 +389,46 @@ function handleAction(action, data) {
           voteId: voteId
         }));
         return { success: true, message: "Vote recorded successfully", voteId: voteId };
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    case "submitAttendance": {
+      const { contextId, token, fingerprint } = data;
+      if (!contextId || !token) {
+        return { success: false, code: "MISSING_ATTENDANCE_FIELDS", message: "Context and token are required." };
+      }
+
+      const sessionValidation = validateOpenSession(contextSheet, contextId);
+      if (!sessionValidation.success) return sessionValidation;
+      if (!isAttendanceContext(sessionValidation.context)) {
+        return { success: false, code: "NOT_ATTENDANCE_CONTEXT", message: "This context is not for attendance." };
+      }
+      if (ss.getSheetByName(SHEET_TOKENS) && !isValidToken(token)) {
+        return { success: false, code: "INVALID_TOKEN", message: "Invalid or unauthorized token." };
+      }
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const finalValidation = validateOpenSession(contextSheet, contextId);
+        if (!finalValidation.success) return finalValidation;
+        const sheet = ensureVotesSheet(ss);
+        const lastRow = sheet.getLastRow();
+        const rows = lastRow > 1
+          ? sheet.getRange(2, 1, lastRow - 1, 7).getValues()
+          : [];
+        const already = rows.find(row => String(row[1]) === String(contextId) && String(row[2]) === String(token));
+        if (already) {
+          return { success: false, code: "ATTENDANCE_ALREADY_RECORDED", message: "Attendance already recorded for this context." };
+        }
+
+        const voteId = Utilities.getUuid();
+        const timezone = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+        const timestamp = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd HH:mm:ss");
+        sheet.appendRow([voteId, contextId, token, "Hadir", timestamp, fingerprint || "", ""]);
+        return { success: true, message: "Attendance recorded successfully.", voteId };
       } finally {
         lock.releaseLock();
       }

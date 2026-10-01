@@ -222,11 +222,76 @@
       overflow-wrap: anywhere;
     }
     .vote-instruction {
-      margin: 0 0 16px;
+      margin: 14px 0 16px;
       color: #555;
       font-size: 16px;
       font-weight: 500;
       text-align: center;
+    }
+
+    .voting-section-label {
+      margin: 0 0 10px;
+      color: #173b2a;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .voting-section-label.is-ended {
+      color: #b42318;
+    }
+
+    .voting-options-panel:not(.group-vote-child) .panel-heading {
+      display: none;
+    }
+
+    .voting-options-panel.group-vote-child .panel-heading {
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border: 1px solid rgba(23, 107, 69, 0.18);
+      border-radius: 8px;
+      background: #eef8f1;
+      text-align: center;
+    }
+
+    .voting-options-panel.group-vote-child .panel-heading span:last-child {
+      color: #173b2a;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    body.group-vote-mode .vote-card {
+      min-height: 118px;
+    }
+
+    body.group-vote-mode .vote-card img {
+      display: none;
+    }
+    .group-vote-navigation {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 18px 0 0;
+      padding-top: 16px;
+      border-top: 1px solid rgba(23, 59, 42, 0.12);
+    }
+    .group-vote-navigation.is-visible {
+      display: flex;
+    }
+    .group-vote-progress {
+      flex: 1;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .group-vote-navigation button {
+      width: auto;
+      min-width: 110px;
+      margin: 0;
     }
     body {
       font-family: 'Inter', sans-serif;
@@ -756,6 +821,7 @@
       color: #176b45;
       font-size: 13px;
       font-weight: 400;
+      white-space: pre-line;
     }
 
     .attendance-help.is-ended {
@@ -804,6 +870,8 @@
       color: #176b45;
       font-size: 13px;
       font-weight: 400;
+      white-space: pre-line;
+      text-align: center;
     }
 
     .session-status.is-ended,
@@ -1086,8 +1154,30 @@
       <h2>Create Voting Context</h2>
       <form id="createContextForm">
         <input id="contextTitle" placeholder="Enter Vote / Attendance Session Title" required />
-        <label class="form-label" for="contextEndsAt">Waktu sesi berakhir</label>
-        <input id="contextEndsAt" type="datetime-local" required />
+        <label class="form-label">
+          <input id="contextIsGroup" type="checkbox" style="width:auto; margin-right:8px;" />
+          Buat group context
+        </label>
+        <label id="parentContextField" class="form-label" for="parentContextSelect">
+          Child dari group (opsional)
+          <select id="parentContextSelect"><option value="">Tidak di dalam group</option></select>
+        </label>
+        <div id="contextSessionFields">
+          <label class="form-label" for="contextEndsAt">Waktu sesi berakhir</label>
+          <input id="contextEndsAt" type="datetime-local" required />
+        </div>
+        <label id="contextMultipleField" class="form-label">
+          <input id="contextIsMultiple" type="checkbox" style="width:auto; margin-right:8px;" />
+          Pilihan ganda (multiple options)
+        </label>
+        <label id="contextLimitedField" class="form-label" style="display:none;">
+          <input id="contextIsLimited" type="checkbox" style="width:auto; margin-right:8px;" />
+          Batasi jumlah pilihan
+        </label>
+        <label id="contextMaxChoicesField" class="form-label" for="contextMaxChoices" style="display:none;">
+          Maksimal pilihan
+          <input id="contextMaxChoices" type="number" min="1" step="1" placeholder="Contoh: 3" />
+        </label>
         <div id="optionsContainer">
           <div class="option-input">
             <input class="option-name-input" placeholder="Option 1" required />
@@ -1100,9 +1190,13 @@
             <button type="button" class="remove-option" aria-label="Hapus opsi" disabled>X</button>
           </div>
         </div>
-        <label class="form-label">
+        <label id="contextAttendanceField" class="form-label">
           <input id="contextAttendance" type="checkbox" style="width:auto; margin-right:8px;" />
           Absen
+        </label>
+        <label id="contextVerificationsField" class="form-label">
+          <input id="contextVerifications" type="checkbox" checked style="width:auto; margin-right:8px;" />
+          Minta verifikasi nama dan email
         </label>
         <button type="button" id="addOption">+ Add Option</button>
         <button type="submit">Create Context</button>
@@ -1124,21 +1218,27 @@
     <!-- VOTER SECTION -->
     <div id="voterSection" class="section">
       <h2 id="voterPageTitle"></h2>
+      <p id="sessionStatus" class="session-status" role="status"></p>
       <p id="voteInstruction" class="vote-instruction">Silahkan Tentukan Pilihan Anda!</p>
       <select id="contextSelect"></select>
+      <p id="votingSectionLabel" class="voting-section-label">Pilihan Voting</p>
       <div class="voting-options-panel">
         <div class="panel-heading">
           <span id="votingOptionsTitle">Pilihan Voting</span>
         </div>
-        <p id="sessionStatus" class="session-status" role="status"></p>
         <div id="voteOptions"></div>
-      </div>
-      <div class="token-panel">
-        <label for="tokenInput">Token voting</label>
-        <input id="tokenInput" placeholder="Enter your unique token" />
-        <p id="tokenQrStatus" class="token-qr-status">Token QR terdeteksi dan siap digunakan.</p>
-        <p class="token-help">Masukkan token unik Anda untuk mengirimkan pilihan.</p>
-        <button id="submitVote">Submit Vote</button>
+        <div id="groupVoteNavigation" class="group-vote-navigation" aria-label="Navigasi item group vote">
+          <button id="groupVotePrevious" type="button">Sebelumnya</button>
+          <span id="groupVoteProgress" class="group-vote-progress"></span>
+          <button id="groupVoteNext" type="button">Berikutnya</button>
+        </div>
+        <div class="token-panel">
+          <label for="tokenInput">Token voting</label>
+          <input id="tokenInput" placeholder="Enter your unique token" />
+          <p id="tokenQrStatus" class="token-qr-status">Token QR terdeteksi dan siap digunakan.</p>
+          <p class="token-help">Masukkan token unik Anda untuk mengirimkan pilihan.</p>
+          <button id="submitVote">Submit Vote</button>
+        </div>
       </div>
       <div id="attendancePanel" class="attendance-panel" aria-live="polite">
         <div class="panel-heading">Konfirmasi Kehadiran</div>
@@ -1210,7 +1310,8 @@
     document.body.classList.toggle("result-mode", isResultPage);
     document.body.classList.toggle("qr-generator-mode", isQrGeneratorPage);
     document.getElementById("adminSection").style.display = "none";
-    document.getElementById("voterSection").style.display = isResultPage || isQrGeneratorPage ? "none" : "block";
+    document.getElementById("voterSection").style.display = isAdmin || isResultPage || isQrGeneratorPage ? "none" : "block";
+    document.getElementById("resultsSection").style.display = isAdmin && !isResultPage ? "none" : "block";
     document.querySelector(".header").style.display = isResultPage ? "none" : "block";
     document.getElementById("voterModal").style.display = "none";
 
@@ -1222,6 +1323,7 @@
     const sessionStatus = document.getElementById("sessionStatus");
     const votingOptionsPanel = document.querySelector(".voting-options-panel");
     const votingOptionsTitle = document.getElementById("votingOptionsTitle");
+    const votingSectionLabel = document.getElementById("votingSectionLabel");
     const tokenPanel = document.querySelector(".token-panel");
     const tokenInput = document.getElementById("tokenInput");
     const tokenFromQr = urlParams.get("token");
@@ -1234,6 +1336,11 @@
     const submitAttendanceButton = document.getElementById("submitAttendance");
     const resultsSection = document.getElementById("resultsSection");
     const voterPageTitle = document.getElementById("voterPageTitle");
+    const voteInstruction = document.getElementById("voteInstruction");
+    const groupVoteNavigation = document.getElementById("groupVoteNavigation");
+    const groupVoteProgress = document.getElementById("groupVoteProgress");
+    const groupVotePreviousButton = document.getElementById("groupVotePrevious");
+    const groupVoteNextButton = document.getElementById("groupVoteNext");
     const qrCards = document.getElementById("qrCards");
     const resultMedia = document.getElementById("resultMedia");
     const chartCanvas = document.getElementById(
@@ -1242,6 +1349,13 @@
 
     let lastVoteRowSaved = null;
     let pendingVoteId = null;
+    let pendingVoteIds = [];
+    let groupVoteChildren = [];
+    let groupVoteIndex = 0;
+    let groupVoteAnswers = {};
+    let isGroupVoteMode = false;
+    let groupVoteSubmitted = false;
+    const selectedChoices = {};
 
     if (tokenFromQr) {
       tokenInput.value = tokenFromQr.trim();
@@ -1324,6 +1438,19 @@
       return response?.success === true;
     }
 
+    async function loadAdminGroupContexts() {
+      const parentContextSelect = document.getElementById("parentContextSelect");
+      const response = await apiPost({ action: "getGroupContexts", adminKey });
+      const groups = response.contexts || [];
+      parentContextSelect.innerHTML = `<option value="">Tidak di dalam group</option>`;
+      groups.forEach(group => {
+        const option = document.createElement("option");
+        option.value = group.id;
+        option.textContent = group.title;
+        parentContextSelect.appendChild(option);
+      });
+    }
+
     async function apiGet(params = "") {
       const requestUrl = params ? `${API_URL}?${params}` : API_URL;
       let lastError;
@@ -1380,14 +1507,24 @@
     }
 
     function getVoterContexts(allContexts) {
+      const groupContexts = allContexts.filter(context => context.is_group === true);
+      const groupIdsWithOpenChildren = new Set(allContexts
+        .filter(context => context.parent_context_id && !context.is_group && !context.attendance && isContextOpen(context))
+        .map(context => String(context.parent_context_id)));
       const openContexts = allContexts
-        .filter(context => isContextOpen(context))
+        .filter(context => !context.is_group && !context.parent_context_id && isContextOpen(context))
+        .concat(groupContexts.filter(context => groupIdsWithOpenChildren.has(String(context.id))))
         .sort((left, right) => getContextLatestDate(right) - getContextLatestDate(left));
       if (openContexts.length) return openContexts;
 
-      const latestContext = [...allContexts]
+      const latestContext = [...allContexts.filter(context => !context.is_group)]
         .sort((left, right) => getContextLatestDate(right) - getContextLatestDate(left))[0];
-      return latestContext ? [latestContext] : [];
+      if (!latestContext) return [];
+      if (latestContext.parent_context_id) {
+        const parent = groupContexts.find(context => String(context.id) === String(latestContext.parent_context_id));
+        return parent ? [parent] : [latestContext];
+      }
+      return [latestContext];
     }
 
     function isAttendanceContext(context) {
@@ -1400,8 +1537,8 @@
         ? "Sesi perhitungan Quorum belum diatur."
         : "Waktu sesi belum diatur.";
       const prefix = isQuorum ? "Sesi perhitungan Quorum" : "Sesi";
-      const state = isContextOpen(context) ? "akan berakhir pada" : "telah berakhir pada";
-      return `${prefix} ${state} ${endDate.toLocaleString("id-ID", {
+      const state = isContextOpen(context) ? "akan berakhir pada:" : "telah berakhir pada:";
+      return `${prefix} ${state}\n${endDate.toLocaleString("id-ID", {
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -1412,7 +1549,10 @@
 
     function setSessionStatus(element, context, isQuorum = false) {
       const isEnded = Boolean(getContextEndDate(context) && !isContextOpen(context));
-      element.textContent = formatSessionEnd(context, isQuorum);
+      const [label, time = ""] = formatSessionEnd(context, isQuorum).split("\n", 2);
+      element.innerHTML = time
+        ? `${escapeHtml(label)}<br><strong>${escapeHtml(time)}</strong>`
+        : escapeHtml(label);
       element.classList.toggle("is-ended", isEnded);
       element.classList.toggle("is-unconfigured", !getContextEndDate(context));
     }
@@ -1422,15 +1562,88 @@
       submitAttendanceButton.disabled = disabled;
     }
 
+    function sortContextsOldestFirst(contextList) {
+      return [...contextList].sort((left, right) => getContextLatestDate(left) - getContextLatestDate(right));
+    }
+
+    function hasGroupVoteAnswer(answer) {
+      return Array.isArray(answer) ? answer.length > 0 : Boolean(answer);
+    }
+
+    function syncGroupVoteNavigation() {
+      if (!isGroupVoteMode || !groupVoteChildren.length) return;
+      const currentChild = groupVoteChildren[groupVoteIndex];
+      const isLastChild = groupVoteIndex === groupVoteChildren.length - 1;
+      const hasCurrentAnswer = hasGroupVoteAnswer(groupVoteAnswers[String(currentChild.id)]);
+      const allChildrenAnswered = groupVoteChildren.every(child => hasGroupVoteAnswer(groupVoteAnswers[String(child.id)]));
+
+      groupVoteProgress.textContent = `${groupVoteIndex + 1} dari ${groupVoteChildren.length}`;
+      groupVotePreviousButton.disabled = groupVoteSubmitted || groupVoteIndex === 0;
+      groupVoteNextButton.style.display = isLastChild ? "none" : "block";
+      groupVoteNextButton.disabled = groupVoteSubmitted || (!hasCurrentAnswer && isContextOpen(currentChild));
+      submitVoteButton.style.display = isLastChild ? "block" : "none";
+      submitVoteButton.disabled = groupVoteSubmitted || !isLastChild || !allChildrenAnswered || !isContextOpen(currentChild);
+      submitVoteButton.title = submitVoteButton.disabled ? "Pilih jawaban pada semua bagian sebelum mengirim." : "";
+    }
+
+    async function showGroupVoteStep() {
+      const childContext = groupVoteChildren[groupVoteIndex];
+      if (!childContext) return;
+      votingOptionsPanel.classList.toggle("group-vote-child", isGroupVoteMode);
+      votingOptionsTitle.textContent = childContext.title;
+      await renderOptions(childContext, true);
+      syncGroupVoteNavigation();
+    }
+
     async function updateAttendanceMode(context) {
       const attendanceMode = isAttendanceContext(context);
+      const groupVoteContext = Boolean(!attendanceMode && context?.is_group && !isAdmin);
+      document.body.classList.toggle("group-vote-mode", groupVoteContext);
+      votingOptionsPanel.classList.toggle("group-vote-child", isGroupVoteMode && !groupVoteContext);
       attendancePanel.classList.toggle("is-visible", attendanceMode);
       votingOptionsPanel.style.display = attendanceMode ? "none" : "block";
       tokenPanel.style.display = attendanceMode ? "none" : "block";
-      resultsSection.style.display = attendanceMode ? "none" : "block";
+      resultsSection.style.display = attendanceMode || (context?.is_group && !isAdmin) ? "none" : "block";
       document.getElementById("voteInstruction").style.display = attendanceMode ? "none" : "block";
+      votingSectionLabel.style.display = attendanceMode ? "none" : "block";
+
+      if (groupVoteContext) {
+        isGroupVoteMode = true;
+        votingSectionLabel.style.display = "none";
+        ctxSelect.style.display = "none";
+        voterPageTitle.textContent = context.title || "Group Vote";
+        voteInstruction.textContent = "Pilih jawaban untuk setiap bagian. Anda dapat kembali untuk meninjau sebelum mengirim.";
+        const allGroupChildren = contexts.filter(child => (
+          String(child.parent_context_id) === String(context.id) &&
+          !child.is_group &&
+          !child.attendance
+        ));
+        const activeGroupChildren = allGroupChildren.filter(isContextOpen);
+        groupVoteChildren = sortContextsOldestFirst(activeGroupChildren.length ? activeGroupChildren : allGroupChildren);
+        groupVoteIndex = 0;
+        groupVoteAnswers = {};
+        groupVoteSubmitted = false;
+        groupVoteNavigation.classList.toggle("is-visible", groupVoteChildren.length > 0);
+        if (!groupVoteChildren.length) {
+          groupVoteProgress.textContent = "Tidak ada item voting aktif di group ini.";
+          voteOptionsDiv.innerHTML = "";
+          submitVoteButton.style.display = "none";
+          return;
+        }
+        await showGroupVoteStep();
+        return;
+      }
+
       if (!attendanceMode) {
+        isGroupVoteMode = false;
+        groupVoteChildren = [];
+        groupVoteAnswers = {};
+        groupVoteSubmitted = false;
+        groupVoteNavigation.classList.remove("is-visible");
+        ctxSelect.style.display = isAdmin || getVoterContexts(contexts).length > 1 ? "block" : "none";
+        submitVoteButton.style.display = "block";
         voterPageTitle.textContent = context?.title || "Voting";
+        voteInstruction.textContent = "Silahkan Tentukan Pilihan Anda!";
         attendanceStatus.classList.remove("is-visible", "is-pending");
         return;
       }
@@ -1442,7 +1655,8 @@
       attendanceName.textContent = tokenFromQr ? "Memuat peserta..." : "Scan QR peserta";
       setAttendanceDisabled(!isContextOpen(context) || !tokenFromQr);
       if (!tokenFromQr) {
-        attendanceHelp.textContent = `Absensi hanya dapat dilakukan melalui QR peserta. ${formatSessionEnd(context, true)}`;
+        const [label, time = ""] = formatSessionEnd(context, true).split("\n", 2);
+        attendanceHelp.innerHTML = `${escapeHtml(`Absensi hanya dapat dilakukan melalui QR peserta. ${label}`)}${time ? `<br><strong>${escapeHtml(time)}</strong>` : ""}`;
         return;
       }
 
@@ -1477,13 +1691,21 @@
       }
     }
 
-    function updateVotingAvailability(context) {
+    function updateVotingSectionLabel(context) {
+      const isOpen = isContextOpen(context);
+      const hasEndDate = Boolean(getContextEndDate(context));
+      const isEnded = hasEndDate && !isOpen;
+      votingSectionLabel.textContent = isEnded ? "Voting sudah ditutup." : "Pilihan Voting";
+      votingSectionLabel.classList.toggle("is-ended", isEnded);
+    }
+
+    function updateVotingAvailability(context, isGroupChildContext = false) {
       const isOpen = isContextOpen(context);
       const hasEndDate = Boolean(getContextEndDate(context));
       const isEnded = hasEndDate && !isOpen;
 
-      votingOptionsTitle.textContent = isEnded ? "Voting sudah ditutup." : "Pilihan Voting";
       votingOptionsPanel.querySelector(".panel-heading").classList.toggle("is-ended", isEnded);
+      if (!isGroupChildContext) updateVotingSectionLabel(context);
       setSessionStatus(sessionStatus, context);
       tokenPanel.classList.toggle("is-disabled", !isOpen);
       tokenInput.disabled = !isOpen;
@@ -1519,6 +1741,10 @@
             return;
           }
           document.getElementById("adminSection").style.display = isResultPage ? "none" : "block";
+          if (!isResultPage && !isQrGeneratorPage) {
+            await loadAdminGroupContexts();
+            return;
+          }
         }
         const json = await apiGet("action=getContexts");
         contexts = json.contexts || [];
@@ -1559,11 +1785,15 @@
           return;
         }
         // render the first context
-        const activeContext = contexts.find(context => context.id === ctxSelect.value);
-        await renderOptions(activeContext);
-        updateVotingAvailability(activeContext);
-        await updateAttendanceMode(activeContext);
-        await loadResults(ctxSelect.value, activeContext);
+        const activeContext = contexts.find(context => String(context.id) === String(ctxSelect.value));
+        if (activeContext?.is_group && !isAdmin) {
+          await updateAttendanceMode(activeContext);
+        } else {
+          await renderOptions(activeContext);
+          updateVotingAvailability(activeContext);
+          await updateAttendanceMode(activeContext);
+          await loadResults(ctxSelect.value, activeContext);
+        }
       } catch (err) {
         console.error("loadContexts error", err);
       } finally {
@@ -1572,7 +1802,7 @@
     }
 
     // ---- Render options (accept optional ctxArg or use select) ----
-    async function renderOptions(ctxArg) {
+    async function renderOptions(ctxArg, isGroupChildContext = false) {
       showLoading(true, "Loading options...");
       // shimmer
       voteOptionsDiv.innerHTML = `<div class="shimmer"></div><div class="shimmer"></div><div class="shimmer"></div>`;
@@ -1653,10 +1883,21 @@
             `;
 
           div.innerHTML = `
-            <input type="radio" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}" data-color="${color}">
+            <input type="${ctx.is_multiple ? "checkbox" : "radio"}" class="vote-radio" id="opt_${safeId}" name="voteOption" value="${escapeHtml(name)}" data-color="${color}">
             ${isAdmin ? `<button type="button" class="option-delete-button" aria-label="Hapus opsi ${escapeHtml(name)}">X</button>` : ''}
             ${optionMarkup}
           `;
+
+          const currentAnswer = isGroupVoteMode ? groupVoteAnswers[String(ctx.id)] : selectedChoices[String(ctx.id)];
+          const previouslySelected = ctx.is_multiple
+            ? Array.isArray(currentAnswer) && currentAnswer.includes(name)
+            : currentAnswer === name;
+          if (previouslySelected) {
+            div.querySelector(".vote-radio").checked = true;
+            div.classList.add("selected");
+            div.style.borderColor = color;
+            div.style.backgroundColor = getOptionTint(color, 0.14);
+          }
 
           if (isAdmin) {
             div.querySelector(".option-delete-button").onclick = async event => {
@@ -1685,23 +1926,52 @@
             };
           }
 
-          // click selects radio and highlights card
+          // click selects/toggles the option and highlights the card
           div.onclick = () => {
             if (isAdmin || !isContextOpen(ctx)) return;
             const el = document.getElementById(`opt_${safeId}`);
-            if (el) el.checked = true;
-            document.querySelectorAll(".vote-card").forEach(c => {
-              c.classList.remove("selected");
-              c.style.borderColor = "#ddd";
-              c.style.backgroundColor = c.dataset.defaultBackground;
-            });
-            div.classList.add("selected");
-            div.style.borderColor = color;
-            div.style.backgroundColor = getOptionTint(color, 0.14);
+            if (!el) return;
+
+            const answerKey = String(ctx.id);
+            const answerStore = isGroupVoteMode ? groupVoteAnswers : selectedChoices;
+
+            if (ctx.is_multiple) {
+              const current = Array.isArray(answerStore[answerKey]) ? answerStore[answerKey] : [];
+              const alreadySelected = current.includes(name);
+              if (!alreadySelected && ctx.is_limited && ctx.max_choices && current.length >= ctx.max_choices) {
+                alert(`Pilih maksimal ${ctx.max_choices} opsi.`);
+                return;
+              }
+              el.checked = !alreadySelected;
+              const updated = alreadySelected ? current.filter(choice => choice !== name) : [...current, name];
+              answerStore[answerKey] = updated;
+              if (el.checked) {
+                div.classList.add("selected");
+                div.style.borderColor = color;
+                div.style.backgroundColor = getOptionTint(color, 0.14);
+              } else {
+                div.classList.remove("selected");
+                div.style.borderColor = "#ddd";
+                div.style.backgroundColor = div.dataset.defaultBackground;
+              }
+            } else {
+              el.checked = true;
+              document.querySelectorAll(".vote-card").forEach(c => {
+                c.classList.remove("selected");
+                c.style.borderColor = "#ddd";
+                c.style.backgroundColor = c.dataset.defaultBackground;
+              });
+              div.classList.add("selected");
+              div.style.borderColor = color;
+              div.style.backgroundColor = getOptionTint(color, 0.14);
+              answerStore[answerKey] = name;
+            }
+
+            if (isGroupVoteMode) syncGroupVoteNavigation();
           };
           voteOptionsDiv.appendChild(div);
         });
-        updateVotingAvailability(ctx);
+        updateVotingAvailability(ctx, isGroupChildContext);
 
       } catch (err) {
         console.error("renderOptions error", err);
@@ -1806,23 +2076,57 @@
     // ---- Create context (Admin only) ----
     if (isAdmin) {
       const contextAttendanceCheckbox = document.getElementById("contextAttendance");
+      const contextIsGroupCheckbox = document.getElementById("contextIsGroup");
+      const contextIsMultipleCheckbox = document.getElementById("contextIsMultiple");
+      const contextIsLimitedCheckbox = document.getElementById("contextIsLimited");
+      const contextMaxChoicesInput = document.getElementById("contextMaxChoices");
+      const contextMultipleField = document.getElementById("contextMultipleField");
+      const contextLimitedField = document.getElementById("contextLimitedField");
+      const contextMaxChoicesField = document.getElementById("contextMaxChoicesField");
+      const parentContextSelect = document.getElementById("parentContextSelect");
+      const parentContextField = document.getElementById("parentContextField");
+      const contextSessionFields = document.getElementById("contextSessionFields");
+      const contextEndsAtInput = document.getElementById("contextEndsAt");
+      const contextAttendanceField = document.getElementById("contextAttendanceField");
+      const contextVerificationsField = document.getElementById("contextVerificationsField");
       const optionsContainer = document.getElementById("optionsContainer");
       const addOptionButton = document.getElementById("addOption");
 
       const updateOptionRequirements = () => {
         const isAttendance = contextAttendanceCheckbox.checked;
+        const isGroup = contextIsGroupCheckbox.checked;
+        const isMultiple = contextIsMultipleCheckbox.checked;
+        const isLimited = contextIsLimitedCheckbox.checked;
+        optionsContainer.style.display = isAttendance || isGroup ? "none" : "block";
+        addOptionButton.style.display = isAttendance || isGroup ? "none" : "block";
+        contextSessionFields.style.display = isGroup ? "none" : "block";
+        contextEndsAtInput.required = !isGroup;
+        contextEndsAtInput.disabled = isGroup;
+        parentContextField.style.display = isGroup ? "none" : "block";
+        contextAttendanceField.style.display = isGroup ? "none" : "block";
+        contextVerificationsField.style.display = isGroup ? "none" : "block";
+        contextAttendanceCheckbox.disabled = isGroup;
+        if (isGroup) contextAttendanceCheckbox.checked = false;
+        contextMultipleField.style.display = isAttendance || isGroup ? "none" : "block";
+        contextIsMultipleCheckbox.disabled = isAttendance || isGroup;
+        if (isAttendance || isGroup) contextIsMultipleCheckbox.checked = false;
+        contextLimitedField.style.display = isMultiple && !isAttendance && !isGroup ? "block" : "none";
+        if (!isMultiple) contextIsLimitedCheckbox.checked = false;
+        contextMaxChoicesField.style.display = isMultiple && isLimited ? "block" : "none";
+        contextMaxChoicesInput.required = isMultiple && isLimited;
+        if (!isLimited) contextMaxChoicesInput.value = "";
         optionsContainer.querySelectorAll(".option-name-input").forEach(input => {
-          input.required = !isAttendance;
-          input.disabled = isAttendance;
+          input.required = !isAttendance && !isGroup;
+          input.disabled = isAttendance || isGroup;
         });
       };
 
       contextAttendanceCheckbox.onchange = () => {
-        const isAttendance = contextAttendanceCheckbox.checked;
-        optionsContainer.style.display = isAttendance ? "none" : "block";
-        addOptionButton.style.display = isAttendance ? "none" : "block";
         updateOptionRequirements();
       };
+      contextIsGroupCheckbox.onchange = updateOptionRequirements;
+      contextIsMultipleCheckbox.onchange = updateOptionRequirements;
+      contextIsLimitedCheckbox.onchange = updateOptionRequirements;
 
       updateOptionRequirements();
 
@@ -1853,10 +2157,20 @@
         e.preventDefault();
         const title = document.getElementById("contextTitle").value.trim();
         const endsAt = document.getElementById("contextEndsAt").value;
+        const isGroup = contextIsGroupCheckbox.checked;
+        const parentContextId = parentContextSelect.value;
         const isAttendance = contextAttendanceCheckbox.checked;
+        const isMultiple = !isGroup && !isAttendance && contextIsMultipleCheckbox.checked;
+        const isLimited = isMultiple && contextIsLimitedCheckbox.checked;
+        const maxChoices = isLimited ? parseInt(contextMaxChoicesInput.value, 10) : "";
         const optionRows = Array.from(document.querySelectorAll("#optionsContainer .option-input"));
         const options = [];
-        if (isAttendance) {
+        if (isGroup) {
+          if (parentContextId) {
+            alert("Group parent tidak dapat menjadi child group lain.");
+            return;
+          }
+        } else if (isAttendance) {
           options.push({ name: "Hadir", img: "" });
         } else {
           for (const row of optionRows) {
@@ -1869,12 +2183,20 @@
             });
           }
         }
-        if (!endsAt || new Date(endsAt).getTime() <= Date.now()) {
+        if (!isGroup && (!endsAt || new Date(endsAt).getTime() <= Date.now())) {
           alert("Waktu berakhir harus berada di masa depan.");
           return;
         }
-        if (options.length < 1) {
+        if (!isGroup && options.length < 1) {
           alert("Minimal satu opsi harus tersedia.");
+          return;
+        }
+        if (isLimited && (!Number.isFinite(maxChoices) || maxChoices < 1)) {
+          alert("Maksimal pilihan harus berupa angka minimal 1.");
+          return;
+        }
+        if (isLimited && maxChoices > options.length) {
+          alert("Maksimal pilihan tidak boleh melebihi jumlah opsi.");
           return;
         }
         showLoading(true, "Creating context...");
@@ -1883,8 +2205,14 @@
             action: "createContext",
             title,
             options: JSON.stringify(options),
-            endsAt: new Date(endsAt).toISOString(),
-            attendance: document.getElementById("contextAttendance").checked,
+            endsAt: isGroup ? "" : new Date(endsAt).toISOString(),
+            attendance: isAttendance,
+            isMultiple,
+            isLimited,
+            maxChoices,
+            verifications: document.getElementById("contextVerifications").checked,
+            isGroup,
+            parentContextId,
             adminKey
           });
           alert(res.message || "Context created!");
@@ -1918,18 +2246,85 @@
 
     // Helper: save voter info
     async function saveVoterInfoRow(voteId, voterString) {
-      return await apiPost({ action: "saveVoterInfo", voteId: String(voteId), voter: voterString });
+      const voteIds = Array.isArray(voteId) ? voteId : [voteId];
+      return await apiPost({ action: "saveVoterInfo", voteIds: JSON.stringify(voteIds), voter: voterString });
     } 
+
+    async function submitGroupVote() {
+      const parentContextId = ctxSelect.value;
+      const token = tokenInput.value.trim();
+      if (!token) {
+        alert("Token is required.");
+        return;
+      }
+      if (!groupVoteChildren.length || groupVoteChildren.some(child => !hasGroupVoteAnswer(groupVoteAnswers[String(child.id)]))) {
+        alert("Silakan pilih jawaban pada setiap item group sebelum mengirim.");
+        return;
+      }
+
+      showLoading(true, "Submitting group vote...");
+      try {
+        const response = await apiPost({
+          action: "submitGroupVote",
+          parentContextId,
+          token,
+          fingerprint: navigator.userAgent || "",
+          answers: JSON.stringify(groupVoteChildren.map(child => ({
+            contextId: child.id,
+            choice: groupVoteAnswers[String(child.id)]
+          })))
+        });
+        if (!response?.success) {
+          alert(response?.message || "Group vote gagal disimpan.");
+          return;
+        }
+
+        pendingVoteIds = response.voteIds || [];
+        pendingVoteId = null;
+        groupVoteSubmitted = true;
+        syncGroupVoteNavigation();
+        if (response.requiresVerification && pendingVoteIds.length) {
+          openVoterModal();
+        } else {
+          pendingVoteIds = [];
+          alert("Semua pilihan berhasil disimpan. Terima kasih!");
+        }
+      } catch (error) {
+        console.error("submit group vote error:", error);
+        alert("Group vote gagal disimpan.");
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    groupVotePreviousButton.addEventListener("click", async () => {
+      if (!isGroupVoteMode || groupVoteIndex <= 0) return;
+      groupVoteIndex -= 1;
+      await showGroupVoteStep();
+    });
+
+    groupVoteNextButton.addEventListener("click", async () => {
+      if (!isGroupVoteMode || groupVoteIndex >= groupVoteChildren.length - 1) return;
+      if (!groupVoteAnswers[String(groupVoteChildren[groupVoteIndex].id)]) return;
+      groupVoteIndex += 1;
+      await showGroupVoteStep();
+    });
+
+    tokenInput.addEventListener("input", syncGroupVoteNavigation);
     
     // ---- Submit vote ----
     // CLICK: Submit Vote
     document.getElementById("submitVote").addEventListener("click", async () => {
-      const selectedEl = document.querySelector("input[name='voteOption']:checked");
-      const token = document.getElementById("tokenInput").value.trim();
+      if (isGroupVoteMode) {
+        await submitGroupVote();
+        return;
+      }
       const contextId = ctxSelect.value;
       const cachedContext = contexts.find(context => String(context.id) === String(contextId));
+      const selectedEls = Array.from(document.querySelectorAll("input[name='voteOption']:checked"));
+      const token = document.getElementById("tokenInput").value.trim();
 
-      if (!selectedEl) { alert("Please select a vote option."); return; }
+      if (!selectedEls.length) { alert(cachedContext?.is_multiple ? "Pilih minimal satu opsi." : "Please select a vote option."); return; }
       if (!token) { alert("Token is required."); return; }
       if (!contextId) { alert("Context not selected"); return; }
 
@@ -1952,7 +2347,7 @@
         return;
       }
 
-      const choice = selectedEl.value;
+      const choice = cachedContext?.is_multiple ? JSON.stringify(selectedEls.map(el => el.value)) : selectedEls[0].value;
       const fingerprint = navigator.userAgent || "";
 
       showLoading(true, "Submitting vote...");
@@ -1987,6 +2382,7 @@
       }
 
       pendingVoteId = res.voteId;
+      pendingVoteIds = pendingVoteId ? [pendingVoteId] : [];
 
       if (!pendingVoteId || typeof pendingVoteId !== "string") {
         console.error("Invalid voteId returned from backend", res);
@@ -1995,7 +2391,13 @@
       }
 
       // 2) Show modal and wait for user action (save or cancel)
-      openVoterModal();
+      if (res.requiresVerification !== false && activeContext.verifications !== false) {
+        openVoterModal();
+      } else {
+        pendingVoteId = null;
+        pendingVoteIds = [];
+        alert("Vote berhasil disimpan. Terima kasih!");
+      }
     });
 
     submitAttendanceButton.addEventListener("click", async () => {
@@ -2037,25 +2439,27 @@
 // ---- Modal Logic ----
     // Modal: Cancel -> delete pending vote
     document.getElementById("voterCancel").addEventListener("click", async () => {
-      // If there's a pending vote row, delete it
-      if (!pendingVoteId) {
+      const voteIdsToDelete = pendingVoteIds.length ? pendingVoteIds : (pendingVoteId ? [pendingVoteId] : []);
+      if (!voteIdsToDelete.length) {
         closeVoterModal();
         return;
       }
       showLoading(true, "Cancelling vote...");
       try {
-          const del = await deleteVoteById(pendingVoteId);
-          console.log("deleteVote result:", del);
-          console.log("deleteVote result:", del.success);
-          if (!del || del.success !== true) {
-            console.warn("deleteVote failed:", del);
-            alert("Gagal menghapus vote. Silakan refresh halaman.");
-          }
-          // success
-          pendingVoteId = null;
-          closeVoterModal();
-          alert("Vote dibatalkan karena identitas tidak diisi.");
-          await loadResults();
+        const deleteResults = await Promise.all(voteIdsToDelete.map(deleteVoteById));
+        if (deleteResults.some(result => !result?.success)) {
+          alert("Gagal menghapus sebagian vote. Silakan refresh halaman.");
+          return;
+        }
+        pendingVoteId = null;
+        pendingVoteIds = [];
+        if (isGroupVoteMode) {
+          groupVoteSubmitted = false;
+          syncGroupVoteNavigation();
+        }
+        closeVoterModal();
+        alert("Vote dibatalkan karena identitas tidak diisi.");
+        if (!isGroupVoteMode) await loadResults();
       } catch (err) {
           console.error("deleteVote network error:", err);
           alert("Network error while cancelling vote.");
@@ -2068,13 +2472,14 @@
       const name = document.getElementById("voterName").value.trim();
       const email = document.getElementById("voterEmail").value.trim();
       if (!name || !email) { alert("Nama & email wajib diisi."); return; }
-      if (!pendingVoteId) { alert("Tidak ada vote tertunda untuk disimpan."); return; }
+      const voteIdsToSave = pendingVoteIds.length ? pendingVoteIds : (pendingVoteId ? [pendingVoteId] : []);
+      if (!voteIdsToSave.length) { alert("Tidak ada vote tertunda untuk disimpan."); return; }
 
       const voterString = `${name}-${email}`;
 
       showLoading(true, "Saving identity...");
       try {
-        const res = await saveVoterInfoRow(pendingVoteId, voterString);
+        const res = await saveVoterInfoRow(voteIdsToSave, voterString);
         if (!res || !res.success) {
           console.warn("saveVoterInfo failed:", res);
           alert(res?.message || "Gagal menyimpan identitas.");
@@ -2084,10 +2489,12 @@
         alert("Vote & Identitas tersimpan. Terima kasih!");
         // close modal and clear state
         pendingVoteId = null;
+        pendingVoteIds = [];
+        const groupSubmission = isGroupVoteMode;
         closeVoterModal();
         // optionally persist name/email for future (if you want)
         // localStorage.setItem("voter_name", name); localStorage.setItem("voter_email", email);
-        await loadResults();
+        if (!groupSubmission) await loadResults();
       } catch (err) {
         console.error("saveVoterInfo network error:", err);
         alert("Network error while saving identity.");
@@ -2112,8 +2519,13 @@
       lastVoteRowSaved = null;
       Object.keys(optionColorMap).forEach(k => delete optionColorMap[k]);
       resultContextSelect.value = ctxSelect.value;
+      const activeContext = contexts.find(context => String(context.id) === String(ctxSelect.value));
+      if (activeContext?.is_group && !isAdmin) {
+        await updateAttendanceMode(activeContext);
+        return;
+      }
       await renderOptions();
-      await updateAttendanceMode(contexts.find(context => String(context.id) === String(ctxSelect.value)));
+      await updateAttendanceMode(activeContext);
       await loadResults();
     };
 

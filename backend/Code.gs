@@ -107,6 +107,34 @@ function isAttendanceContext(context) {
   ));
 }
 
+function isGroupContext(context) {
+  return Boolean(context && context.headerMap.is_group !== undefined && (
+    context.row[context.headerMap.is_group] === true ||
+    String(context.row[context.headerMap.is_group] || "").trim().toLowerCase() === "true"
+  ));
+}
+
+function isMultipleContext(context) {
+  return Boolean(context && context.headerMap.is_multiple !== undefined && (
+    context.row[context.headerMap.is_multiple] === true ||
+    String(context.row[context.headerMap.is_multiple] || "").trim().toLowerCase() === "true"
+  ));
+}
+
+function isLimitedContext(context) {
+  return Boolean(context && context.headerMap.is_limited !== undefined && (
+    context.row[context.headerMap.is_limited] === true ||
+    String(context.row[context.headerMap.is_limited] || "").trim().toLowerCase() === "true"
+  ));
+}
+
+function getMaxChoices(context) {
+  const index = context && context.headerMap.max_choices;
+  if (index === undefined) return null;
+  const value = Number(context.row[index]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function validateOpenSession(contextSheet, contextId) {
   const context = getContextById(contextSheet, contextId);
   if (!context) {
@@ -141,7 +169,38 @@ function validateOpenContext(contextSheet, contextId, choice) {
 
   const optionsIndex = context.headerMap.options;
   const options = optionsIndex === undefined ? [] : parseOptions(context.row[optionsIndex]);
-  if (!options.some(option => getOptionName(option) === String(choice))) {
+  const optionNames = options.map(getOptionName);
+
+  if (isMultipleContext(context)) {
+    let choices = choice;
+    if (typeof choices === "string") {
+      try {
+        choices = JSON.parse(choices);
+      } catch (error) {
+        return { success: false, code: "INVALID_CHOICE", message: "Choice format is invalid." };
+      }
+    }
+    if (!Array.isArray(choices) || !choices.length) {
+      return { success: false, code: "INVALID_CHOICE", message: "Select at least one option." };
+    }
+    choices = choices.map(String);
+    const uniqueChoices = Array.from(new Set(choices));
+    if (uniqueChoices.length !== choices.length) {
+      return { success: false, code: "DUPLICATE_CHOICE", message: "Duplicate choices are not allowed." };
+    }
+    if (!uniqueChoices.every(option => optionNames.includes(option))) {
+      return { success: false, code: "INVALID_CHOICE", message: "Choice is not available for this context." };
+    }
+    if (isLimitedContext(context)) {
+      const maxChoices = getMaxChoices(context);
+      if (maxChoices && uniqueChoices.length > maxChoices) {
+        return { success: false, code: "TOO_MANY_CHOICES", message: "Pilih maksimal " + maxChoices + " opsi." };
+      }
+    }
+    return { success: true, context, endsAt, choices: uniqueChoices };
+  }
+
+  if (!optionNames.includes(String(choice))) {
     return { success: false, code: "INVALID_CHOICE", message: "Choice is not available for this context." };
   }
   return { success: true, context, endsAt };
@@ -201,16 +260,34 @@ function handleAction(action, data) {
     case "createContext": {
       const adminError = requireAdminKey(data);
       if (adminError) return adminError;
-      const { title, options, endsAt, ends_at, attendance } = data;
+      const { title, options, endsAt, ends_at, attendance, verifications, isGroup, parentContextId, isMultiple, isLimited, maxChoices } = data;
+      const groupContext = String(isGroup).trim().toLowerCase() === "true";
+      const parentId = String(parentContextId || "").trim();
       const endDate = parseContextEndDate(endsAt || ends_at);
-      if (!title || !endDate || endDate.getTime() <= Date.now()) {
+      if (!title || (!groupContext && (!endDate || endDate.getTime() <= Date.now()))) {
         return { success: false, code: "INVALID_END_TIME", message: "A future ends_at value is required." };
       }
-      const isAttendance = String(attendance).trim().toLowerCase() === "true";
+      if (groupContext && parentId) {
+        return { success: false, code: "INVALID_GROUP_PARENT", message: "A group cannot be nested inside another group." };
+      }
+      const isAttendance = !groupContext && String(attendance).trim().toLowerCase() === "true";
+      const requiresVerification = !groupContext && String(verifications).trim().toLowerCase() === "true";
+      if (isAttendance && parentId) {
+        return { success: false, code: "ATTENDANCE_CANNOT_BE_GROUP_CHILD", message: "Attendance contexts cannot be added as voting group children." };
+      }
+      const multipleContext = !groupContext && !isAttendance && String(isMultiple).trim().toLowerCase() === "true";
+      const limitedContext = multipleContext && String(isLimited).trim().toLowerCase() === "true";
+      let maxChoicesValue = null;
+      if (limitedContext) {
+        maxChoicesValue = parseInt(maxChoices, 10);
+        if (!Number.isFinite(maxChoicesValue) || maxChoicesValue < 1) {
+          return { success: false, code: "INVALID_MAX_CHOICES", message: "Max choices must be a number of at least 1." };
+        }
+      }
       let sheet = ss.getSheetByName(SHEET_CONTEXTS);
       if (!sheet) {
         sheet = ss.insertSheet(SHEET_CONTEXTS);
-        sheet.appendRow(["context_id", "title", "options", "created_at", "ends_at", "attendance"]);
+        sheet.appendRow(["context_id", "title", "options", "created_at", "ends_at", "attendance", "verifications", "is_group", "parent_context_id", "is_multiple", "is_limited", "max_choices"]);
       } else {
         const headerMap = getContextHeaderMap(sheet);
         if (headerMap.ends_at === undefined) {
@@ -219,16 +296,37 @@ function handleAction(action, data) {
         if (isAttendance && headerMap.attendance === undefined) {
           return { success: false, code: "ATTENDANCE_COLUMN_MISSING", message: "Add an attendance column to the Contexts sheet first." };
         }
+        if (headerMap.verifications === undefined) {
+          return { success: false, code: "VERIFICATIONS_COLUMN_MISSING", message: "Add a verifications column to the Contexts sheet first." };
+        }
+        if ((groupContext || parentId) && (headerMap.is_group === undefined || headerMap.parent_context_id === undefined)) {
+          return { success: false, code: "GROUP_COLUMNS_MISSING", message: "Add is_group and parent_context_id columns to the Contexts sheet first." };
+        }
+        if (multipleContext && (headerMap.is_multiple === undefined || headerMap.is_limited === undefined || headerMap.max_choices === undefined)) {
+          return { success: false, code: "MULTIPLE_COLUMNS_MISSING", message: "Add is_multiple, is_limited, and max_choices columns to the Contexts sheet first." };
+        }
+        if (parentId) {
+          const parent = getContextById(sheet, parentId);
+          if (!parent || !isGroupContext(parent)) {
+            return { success: false, code: "INVALID_PARENT_CONTEXT", message: "Selected parent context is not a group." };
+          }
+        }
       }
       const contextId = Utilities.getUuid();
       const headerMap = getContextHeaderMap(sheet);
       const row = new Array(Math.max(sheet.getLastColumn(), 5)).fill("");
       row[headerMap.context_id] = contextId;
       row[headerMap.title] = title;
-      row[headerMap.options] = typeof options === "string" ? options : JSON.stringify(options || []);
+      row[headerMap.options] = groupContext ? "[]" : (typeof options === "string" ? options : JSON.stringify(options || []));
       row[headerMap.created_at] = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "yyyy-MM-dd HH:mm:ss");
-      row[headerMap.ends_at] = endDate;
+      if (headerMap.ends_at !== undefined && endDate) row[headerMap.ends_at] = endDate;
       if (headerMap.attendance !== undefined) row[headerMap.attendance] = isAttendance;
+      if (headerMap.verifications !== undefined) row[headerMap.verifications] = requiresVerification;
+      if (headerMap.is_group !== undefined) row[headerMap.is_group] = groupContext;
+      if (headerMap.parent_context_id !== undefined) row[headerMap.parent_context_id] = parentId;
+      if (headerMap.is_multiple !== undefined) row[headerMap.is_multiple] = multipleContext;
+      if (headerMap.is_limited !== undefined) row[headerMap.is_limited] = limitedContext;
+      if (headerMap.max_choices !== undefined) row[headerMap.max_choices] = maxChoicesValue === null ? "" : maxChoicesValue;
       sheet.appendRow(row);
       return { success: true, contextId };
     }
@@ -247,9 +345,45 @@ function handleAction(action, data) {
         attendance: headerMap.attendance !== undefined && (
           r[headerMap.attendance] === true ||
           String(r[headerMap.attendance] || "").trim().toLowerCase() === "true"
-        )
+        ),
+        verifications: headerMap.verifications === undefined || (
+          r[headerMap.verifications] === true ||
+          String(r[headerMap.verifications] || "").trim().toLowerCase() === "true"
+        ),
+        is_group: headerMap.is_group !== undefined && (
+          r[headerMap.is_group] === true ||
+          String(r[headerMap.is_group] || "").trim().toLowerCase() === "true"
+        ),
+        parent_context_id: headerMap.parent_context_id === undefined ? "" : String(r[headerMap.parent_context_id] || ""),
+        is_multiple: headerMap.is_multiple !== undefined && (
+          r[headerMap.is_multiple] === true ||
+          String(r[headerMap.is_multiple] || "").trim().toLowerCase() === "true"
+        ),
+        is_limited: headerMap.is_limited !== undefined && (
+          r[headerMap.is_limited] === true ||
+          String(r[headerMap.is_limited] || "").trim().toLowerCase() === "true"
+        ),
+        max_choices: headerMap.max_choices === undefined || r[headerMap.max_choices] === "" ? null : Number(r[headerMap.max_choices])
       }));
       return { success: true, contexts };
+    }
+
+    case "getGroupContexts": {
+      const adminError = requireAdminKey(data);
+      if (adminError) return adminError;
+      const sheet = ss.getSheetByName(SHEET_CONTEXTS);
+      if (!sheet || sheet.getLastRow() < 2) return { success: true, contexts: [] };
+      const headerMap = getContextHeaderMap(sheet);
+      const groupIndex = headerMap.is_group;
+      const idIndex = headerMap.context_id;
+      const titleIndex = headerMap.title;
+      if (groupIndex === undefined || idIndex === undefined || titleIndex === undefined) {
+        return { success: true, contexts: [] };
+      }
+      const groups = sheet.getDataRange().getValues().slice(1)
+        .filter(row => row[groupIndex] === true || String(row[groupIndex] || "").trim().toLowerCase() === "true")
+        .map(row => ({ id: String(row[idIndex]), title: String(row[titleIndex] || "") }));
+      return { success: true, contexts: groups };
     }
 
     case "getParticipant": {
@@ -379,16 +513,117 @@ function handleAction(action, data) {
           return { success: false, code: "TOKEN_ALREADY_USED", message: "Token already used for this context" };
         }
 
+        const choiceToStore = finalContextValidation.choices ? JSON.stringify(finalContextValidation.choices) : choice;
         const timezone = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
         const timestamp = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd HH:mm:ss");
-        sheet.appendRow([voteId, contextId, token, choice, timestamp, fingerprint || "", ""]);
+        sheet.appendRow([voteId, contextId, token, choiceToStore, timestamp, fingerprint || "", ""]);
 
         Logger.log("submitVote return payload: " + JSON.stringify({
           success: true,
           message: "Vote recorded successfully",
           voteId: voteId
         }));
-        return { success: true, message: "Vote recorded successfully", voteId: voteId };
+        const requiresVerification = finalContextValidation.context.headerMap.verifications === undefined || (
+          finalContextValidation.context.row[finalContextValidation.context.headerMap.verifications] === true ||
+          String(finalContextValidation.context.row[finalContextValidation.context.headerMap.verifications] || "").trim().toLowerCase() === "true"
+        );
+        return { success: true, message: "Vote recorded successfully", voteId: voteId, requiresVerification };
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    case "submitGroupVote": {
+      const parentContextId = String(data && data.parentContextId || "").trim();
+      const token = String(data && data.token || "").trim();
+      let answers = data && data.answers;
+      if (typeof answers === "string") {
+        try {
+          answers = JSON.parse(answers);
+        } catch (error) {
+          answers = null;
+        }
+      }
+      if (!parentContextId || !token || !Array.isArray(answers) || !answers.length) {
+        return { success: false, code: "MISSING_GROUP_VOTE_FIELDS", message: "Group, token, and child answers are required." };
+      }
+      if (!isValidToken(token)) {
+        return { success: false, code: "INVALID_TOKEN", message: "Invalid or unauthorized token." };
+      }
+
+      const parent = getContextById(contextSheet, parentContextId);
+      if (!parent || !isGroupContext(parent)) {
+        return { success: false, code: "INVALID_PARENT_CONTEXT", message: "Group context not found." };
+      }
+      const parentColumn = parent.headerMap.parent_context_id;
+      if (parentColumn === undefined) {
+        return { success: false, code: "GROUP_COLUMNS_MISSING", message: "Add parent_context_id to Contexts first." };
+      }
+      const contextRows = contextSheet.getDataRange().getValues().slice(1);
+      const children = contextRows
+        .filter(row => String(row[parentColumn] || "") === parentContextId)
+        .map(row => ({ row, headerMap: parent.headerMap }));
+      const activeChildren = children.filter(child => {
+        const childId = String(child.row[parent.headerMap.context_id] || "");
+        const validation = validateOpenSession(contextSheet, childId);
+        return validation.success && !isAttendanceContext(validation.context) && !isGroupContext(validation.context);
+      });
+      if (!activeChildren.length) {
+        return { success: false, code: "GROUP_HAS_NO_CHILDREN", message: "This group has no voting items." };
+      }
+
+      const answerMap = new Map(answers.map(answer => [String(answer.contextId || ""), answer.choice]));
+      if (answerMap.size !== activeChildren.length || activeChildren.some(child => !answerMap.has(String(child.row[parent.headerMap.context_id])))) {
+        return { success: false, code: "INCOMPLETE_GROUP_VOTE", message: "Select an option for every item before submitting." };
+      }
+
+      const validations = [];
+      for (const child of activeChildren) {
+        const childId = String(child.row[parent.headerMap.context_id]);
+        const choice = answerMap.get(childId);
+        const validation = validateOpenContext(contextSheet, childId, choice);
+        if (!validation.success) return validation;
+        if (isAttendanceContext(validation.context) || isGroupContext(validation.context)) {
+          return { success: false, code: "INVALID_GROUP_CHILD", message: "Group child contexts must be voting contexts." };
+        }
+        const storedChoice = validation.choices ? JSON.stringify(validation.choices) : String(choice);
+        validations.push({ contextId: childId, choice: storedChoice, context: validation.context });
+      }
+
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const finalValidations = [];
+        for (const answer of validations) {
+          const validation = validateOpenContext(contextSheet, answer.contextId, answer.choice);
+          if (!validation.success) return validation;
+          finalValidations.push({ ...answer, context: validation.context });
+        }
+
+        const sheet = ensureVotesSheet(ss);
+        const lastRow = sheet.getLastRow();
+        const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 7).getValues() : [];
+        const duplicate = finalValidations.find(answer => rows.some(row => (
+          String(row[1]) === answer.contextId && String(row[2]).trim() === token
+        )));
+        if (duplicate) {
+          return { success: false, code: "TOKEN_ALREADY_USED", message: "Token has already voted in one or more items in this group." };
+        }
+
+        const timezone = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+        const timestamp = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd HH:mm:ss");
+        const voteIds = finalValidations.map(() => Utilities.getUuid());
+        const newRows = finalValidations.map((answer, index) => [
+          voteIds[index], answer.contextId, token, answer.choice, timestamp, data.fingerprint || "", ""
+        ]);
+        sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, 7).setValues(newRows);
+
+        const requiresVerification = finalValidations.some(answer => (
+          answer.context.headerMap.verifications === undefined ||
+          answer.context.row[answer.context.headerMap.verifications] === true ||
+          String(answer.context.row[answer.context.headerMap.verifications] || "").trim().toLowerCase() === "true"
+        ));
+        return { success: true, message: "Group vote recorded successfully.", voteIds, requiresVerification };
       } finally {
         lock.releaseLock();
       }
@@ -443,6 +678,16 @@ function handleAction(action, data) {
         // return { success: false, message: "Missing row or voter" };
       // }
       const { voteId, voter } = data;
+      let voteIds = data.voteIds;
+      if (typeof voteIds === "string") {
+        try {
+          voteIds = JSON.parse(voteIds);
+        } catch (error) {
+          voteIds = [];
+        }
+      }
+      if (!Array.isArray(voteIds) || !voteIds.length) voteIds = voteId ? [voteId] : [];
+      if (!voteIds.length || !voter) return { success: false, message: "Missing vote IDs or voter identity." };
       const sheet = ensureVotesSheet(ss);
       const rows = sheet.getDataRange().getValues();
       //if (row < 2 || row > sheet.getLastRow()) {
@@ -450,13 +695,16 @@ function handleAction(action, data) {
       // }
       // sheet.getRange(row, 6).setValue(voter);
       // return { success: true, message: "Voter info saved", row };
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] === voteId) {
-          sheet.getRange(i + 1, 7).setValue(voter); // kolom voters
-          return { success: true, message: "Voter info saved", rows };
-        }
+      const voteIdSet = new Set(voteIds.map(id => String(id)));
+      const matchingRows = [];
+      for (let i = 1; i < rows.length; i += 1) {
+        if (voteIdSet.has(String(rows[i][0]))) matchingRows.push(i + 1);
       }
-      return { success: false, message: "Vote not found" };
+      if (matchingRows.length !== voteIdSet.size) {
+        return { success: false, message: "One or more votes were not found." };
+      }
+      matchingRows.forEach(rowNumber => sheet.getRange(rowNumber, 7).setValue(voter));
+      return { success: true, message: "Voter info saved", count: matchingRows.length };
     }
 
     case "getResults": {
@@ -467,7 +715,16 @@ function handleAction(action, data) {
       const rows = sheet.getDataRange().getValues().slice(1).filter(r => r[1] === contextId);
       const counts = {};
       for (let r of rows) {
-        counts[r[3]] = (counts[r[3]] || 0) + 1;
+        let choices;
+        try {
+          const parsed = JSON.parse(r[3]);
+          choices = Array.isArray(parsed) ? parsed : [r[3]];
+        } catch (error) {
+          choices = [r[3]];
+        }
+        choices.forEach(choice => {
+          counts[choice] = (counts[choice] || 0) + 1;
+        });
       }
       return { success: true, results: counts };
     }
